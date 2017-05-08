@@ -37,11 +37,14 @@
 #include <pthread.h>
 #include <signal.h>		/* for sigaction */
 #include <errno.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include "fsal.h"
 #include "log.h"
 #include "nfs_init.h"
 #include "nfs_exports.h"
 #include "pnfs_utils.h"
+#include "server_stats.h"
 
 /**
  * @brief LTTng trace enabling magic
@@ -480,8 +483,21 @@ int main(int argc, char *argv[])
 
 	config_Free(config_struct);
 
+	int shmid = global_stats_init();
+
+	if (shmid < 0) {
+		LogEvent(COMPONENT_INIT,
+			 "***shmget failed, key 2049, errno %d\n", shmid);
+		LogEvent(COMPONENT_INIT, "global stats allocated with malloc");
+	} else {
+		LogEvent(COMPONENT_INIT,
+			 "***shmget successful, key 2049, shmid %d\n", shmid);
+	}
+
 	/* Everything seems to be OK! We can now start service threads */
 	nfs_start(&my_nfs_start_info);
+
+	global_stats_free();
 
 	return 0;
 

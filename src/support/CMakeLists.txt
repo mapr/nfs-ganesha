@@ -50,6 +50,19 @@ SET(support_STAT_SRCS
    export_mgr.c
 )
 
+SET(support_DISPLAY_STATS
+   display_stats.c
+)
+
+add_executable(display_stats
+  ${support_DISPLAY_STATS}
+  ${support_STATS_SRCS}
+)
+
+target_link_libraries(display_stats
+  ${DBUS_LIBRARIES}
+)
+
 if(ERROR_INJECTION)
   set(support_STAT_SRCS
     ${support_STAT_SRCS}
