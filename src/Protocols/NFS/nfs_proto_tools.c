@@ -3255,7 +3255,8 @@ nfsstat4 cache_entry_To_Fattr(cache_entry_t *entry, fattr4 *Fattr,
 	}
 
 	return nfs4_Errno(
-		cache_inode_getattr(entry, &f, Fattr_filler, CB_ORIGINAL));
+		cache_inode_getattr(entry, &f, Fattr_filler,
+					CB_ORIGINAL, false));
 }
 
 int nfs4_Fattr_Fill_Error(fattr4 *Fattr, nfsstat4 rdattr_error)

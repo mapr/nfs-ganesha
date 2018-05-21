@@ -153,7 +153,8 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 
 static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence, void *dir_state,
-				  fsal_readdir_cb cb, bool *eof)
+				  fsal_readdir_cb cb, bool *eof,
+				  int64_t num_entries)
 {
 	int rc = 0;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };

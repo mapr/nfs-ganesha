@@ -295,7 +295,8 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 					   &eod_met,
 					   ATTRS_NFS3,
 					   nfs3_readdirplus_callback,
-					   &tracker);
+					   &tracker,
+					   0);
 
 	if (cache_status != CACHE_INODE_SUCCESS) {
 		/* Is this a retryable error */

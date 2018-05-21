@@ -249,6 +249,9 @@ static struct config_item version4_params[] = {
 		       nfs_version4_parameter, pnfs_mds),
 	CONF_ITEM_BOOL("PNFS_DS", true,
 		       nfs_version4_parameter, pnfs_ds),
+	CONF_ITEM_UI64("Dirent_Cache_Threshold", 0, UINT64_MAX,
+			DIRENT_CACHE_THRESHOLD_DEFAULT,
+			nfs_version4_parameter, dirent_cache_threshold),
 	CONFIG_EOL
 };
 

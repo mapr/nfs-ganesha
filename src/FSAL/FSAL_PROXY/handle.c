@@ -1592,7 +1592,7 @@ static fsal_status_t pxy_do_readdir(struct pxy_obj_handle *ph,
 
 		*cookie = e4->cookie;
 
-		if (!cb(name, cbarg, e4->cookie))
+		if (!cb(name, cbarg, e4->cookie, NULL))
 			break;
 	}
 	xdr_free((xdrproc_t) xdr_readdirres, resoparray);
@@ -1602,7 +1602,8 @@ static fsal_status_t pxy_do_readdir(struct pxy_obj_handle *ph,
 /* What to do about verifier if server needs one? */
 static fsal_status_t pxy_readdir(struct fsal_obj_handle *dir_hdl,
 				 fsal_cookie_t *whence, void *cbarg,
-				 fsal_readdir_cb cb, bool *eof)
+				 fsal_readdir_cb cb, bool *eof,
+				 uint64_t num_entries)
 {
 	nfs_cookie4 cookie = 0;
 	struct pxy_obj_handle *ph;

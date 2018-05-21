@@ -366,6 +366,19 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 						   CACHE_INODE_DIR_POPULATED);
 		}
 
+		LogFullDebug(COMPONENT_CACHE_INODE,
+			     "hdl:%p directory entries:%lu, dirent_cache_threshold:%lu",
+			     new_obj, new_obj->attrs->filesize,
+			     nfs_param.nfsv4_param.dirent_cache_threshold);
+		if (new_obj->attrs->filesize <=
+			nfs_param.nfsv4_param.dirent_cache_threshold) {
+			atomic_set_uint32_t_bits(&nentry->flags,
+						 CACHE_INODE_DIRENT_AVL_TREE);
+		} else {
+			atomic_clear_uint32_t_bits(&nentry->flags,
+						 CACHE_INODE_DIRENT_AVL_TREE);
+		}
+
 		nentry->object.dir.avl.collisions = 0;
 		nentry->object.dir.nbactive = 0;
 		glist_init(&nentry->object.dir.export_roots);
@@ -822,6 +835,16 @@ cache_inode_release_dirents(cache_entry_t *entry,
 			entry->object.dir.nbactive = 0;
 			atomic_clear_uint32_t_bits(&entry->flags,
 						   CACHE_INODE_DIR_POPULATED);
+			if (entry->obj_handle->attrs->filesize <=
+			    nfs_param.nfsv4_param.dirent_cache_threshold) {
+				LogFullDebug(COMPONENT_CACHE_INODE,
+					"hdl:%p directory entries:%lu, dirent_cache_threshold:%lu",
+					entry->obj_handle,
+					entry->obj_handle->attrs->filesize,
+					nfs_param.
+					nfsv4_param.dirent_cache_threshold);
+				entry->flags |= CACHE_INODE_DIRENT_AVL_TREE;
+			}
 		}
 	}
 }

@@ -287,6 +287,12 @@ cache_inode_add_cached_dirent(cache_entry_t *parent,
 		return status;
 	}
 
+	if (!(parent->flags & CACHE_INODE_DIRENT_AVL_TREE)) {
+		status = CACHE_INODE_SUCCESS;
+		return status;
+	}
+
+
 	/* in cache inode avl, we always insert on pentry_parent */
 	new_dir_entry = gsh_malloc(sizeof(cache_inode_dir_entry_t) + namesize);
 	if (new_dir_entry == NULL) {
@@ -361,6 +367,11 @@ struct cache_inode_populate_cb_state {
 	cache_entry_t *directory;
 	cache_inode_status_t *status;
 	uint64_t offset_cookie;
+	struct cache_inode_readdir_cb_parms nfs4_cb_parms;
+	cache_inode_getattr_cb_t cb;
+	int *nbfound;
+	struct fsal_obj_handle *prev_obj_hdl;
+	int prev_obj_hdl_init;
 };
 
 /**
@@ -379,17 +390,33 @@ struct cache_inode_populate_cb_state {
 
 static bool
 populate_dirent(const char *name, void *dir_state,
-		fsal_cookie_t cookie)
+		fsal_cookie_t cookie, struct fsal_obj_handle *obj_hdl)
 {
 	struct cache_inode_populate_cb_state *state =
 	    (struct cache_inode_populate_cb_state *)dir_state;
-	struct fsal_obj_handle *entry_hdl;
+	struct fsal_obj_handle *entry_hdl = obj_hdl;
 	cache_inode_dir_entry_t *new_dir_entry = NULL;
 	cache_entry_t *cache_entry = NULL;
 	fsal_status_t fsal_status = { 0, 0 };
 	struct fsal_obj_handle *dir_hdl = state->directory->obj_handle;
 
-	fsal_status = dir_hdl->obj_ops.lookup(dir_hdl, name, &entry_hdl);
+	LogFullDebug(COMPONENT_NFS_READDIR,
+		     "name %s, cookie %lu, obj_hdl %p",
+		     name, cookie, obj_hdl);
+	if (!state->prev_obj_hdl_init) {
+		state->prev_obj_hdl = obj_hdl;
+		state->prev_obj_hdl_init = 1;
+	} else {
+		bool prev_obj_hdl_null = state->prev_obj_hdl == NULL;
+		bool obj_hdl_null = obj_hdl == NULL;
+
+		assert(prev_obj_hdl_null == obj_hdl_null);
+	}
+	if (!entry_hdl) {
+		fsal_status = dir_hdl->obj_ops.lookup(dir_hdl,
+						name, &entry_hdl);
+	}
+
 	if (FSAL_IS_ERROR(fsal_status)) {
 		*state->status = cache_inode_error_convert(fsal_status);
 		if (*state->status == CACHE_INODE_FSAL_XDEV) {
@@ -427,21 +454,54 @@ populate_dirent(const char *name, void *dir_state,
 				    &state->directory->fh_hk.key);
 	}
 
-	*state->status =
-	    cache_inode_add_cached_dirent(state->directory, name, cache_entry,
-					  &new_dir_entry);
-	/* return initial ref */
-	cache_inode_put(cache_entry);
-
+	bool ret = true;
+	*state->status = cache_inode_add_cached_dirent(
+				state->directory, name, cache_entry,
+				&new_dir_entry);
 	if ((*state->status != CACHE_INODE_SUCCESS) &&
 	    (*state->status != CACHE_INODE_ENTRY_EXISTS)) {
 		LogEvent(COMPONENT_NFS_READDIR,
 			 "cache_inode_add_cached_dirent failed with %s",
 			 cache_inode_err_str(*state->status));
-		return false;
+		ret = false;
 	}
 
-	return true;
+	if ((*state->status == CACHE_INODE_SUCCESS) &&
+	    !(state->directory->flags & CACHE_INODE_DIRENT_AVL_TREE)) {
+		struct cache_inode_readdir_cb_parms cb_parms;
+
+		cb_parms = state->nfs4_cb_parms;
+		cb_parms.name = name;
+		cb_parms.cookie = cookie;
+
+		LogFullDebug(COMPONENT_CACHE_INODE,
+			     "calling cache_inode_getattr from populate_dirent\n");
+		*state->status =
+		    cache_inode_getattr(cache_entry, &cb_parms,
+					state->cb, CB_ORIGINAL,
+					obj_hdl != NULL);
+
+		if (*state->status == CACHE_INODE_SUCCESS) {
+			*state->nbfound = *state->nbfound + 1;
+		} else {
+			LogFullDebug(COMPONENT_NFS_READDIR,
+				"cache_inode_getattr failed with status:%d",
+				*state->status);
+			ret = false;
+		}
+
+		if (ret) {
+			ret = cb_parms.in_result;
+			if (!ret) {
+				LogFullDebug(COMPONENT_NFS_READDIR,
+					 "bailing out due to entry not in result");
+			}
+		}
+	}
+	/* return initial ref */
+	cache_inode_put(cache_entry);
+
+	return ret;
 }
 
 /**
@@ -458,7 +518,11 @@ populate_dirent(const char *name, void *dir_state,
  */
 
 static cache_inode_status_t
-cache_inode_readdir_populate(cache_entry_t *directory)
+cache_inode_readdir_populate(cache_entry_t *directory,
+		struct cache_inode_readdir_cb_parms cb_parms,
+		cache_inode_getattr_cb_t cb,
+		int *nbfound, bool *eod_met,
+		fsal_cookie_t cookie, uint64_t num_entries)
 {
 	fsal_status_t fsal_status;
 	bool eod = false;
@@ -494,13 +558,37 @@ cache_inode_readdir_populate(cache_entry_t *directory)
 	state.directory = directory;
 	state.status = &status;
 	state.offset_cookie = 0;
+	/* cb and params need to be passed to cache_inode_getattr */
+	state.nfs4_cb_parms = cb_parms;
+	state.cb = cb;
+	/* pass nbfound here to update and send it back
+	 * to called of cache_inode_readdir */
+	state.nbfound = nbfound;
+	/* needed to check if all obj_hdl passed to
+	 * populate_dirent are either NULLs or not */
+	state.prev_obj_hdl = NULL;
+	state.prev_obj_hdl_init = 0;
+
+	/* read entire directory if directory can be cacheable */
+	if (directory->flags & CACHE_INODE_DIRENT_AVL_TREE) {
+		cookie = 0;
+		num_entries = UINT64_MAX;
+		LogFullDebug(COMPONENT_NFS_READDIR,
+					 "%p CACHE_INODE_DIRENT_AVL_CACHE enabled",
+					 directory->obj_handle);
+	} else {
+		LogFullDebug(COMPONENT_NFS_READDIR,
+					 "%p CACHE_INODE_DIRENT_AVL_CACHE disabled",
+					 directory->obj_handle);
+	}
 
 	fsal_status =
 		directory->obj_handle->obj_ops.readdir(directory->obj_handle,
-						    NULL,
+						    &cookie,
 						    (void *)&state,
 						    populate_dirent,
-						    &eod);
+						    &eod,
+						    num_entries);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		if (fsal_status.major == ERR_FSAL_STALE) {
 			LogEvent(COMPONENT_NFS_READDIR,
@@ -521,7 +609,7 @@ cache_inode_readdir_populate(cache_entry_t *directory)
 			"Readdir didn't reach eod on dir %p (status %s)",
 			directory->obj_handle, cache_inode_err_str(status));
 		status = CACHE_INODE_DELAY;
-	} else if (eod) {
+	} else if (eod && !cookie) {
 		/* End of work */
 		atomic_set_uint32_t_bits(&directory->flags,
 					 CACHE_INODE_DIR_POPULATED);
@@ -531,6 +619,7 @@ cache_inode_readdir_populate(cache_entry_t *directory)
 		status = CACHE_INODE_SUCCESS;
 	}
 
+	*eod_met = eod;
 	/* If !eod (and fsal_status isn't an error), then the only error path
 	 * is through a callback failure and status has been set the
 	 * populate_dirent callback */
@@ -569,7 +658,8 @@ cache_inode_readdir(cache_entry_t *directory,
 		    bool *eod_met,
 		    attrmask_t attrmask,
 		    cache_inode_getattr_cb_t cb,
-		    void *opaque)
+		    void *opaque,
+		    uint64_t num_entries)
 {
 	/* The entry being examined */
 	cache_inode_dir_entry_t *dirent = NULL;
@@ -591,7 +681,8 @@ cache_inode_readdir(cache_entry_t *directory,
 	bool retry_stale = true;
 
 	LogFullDebug(COMPONENT_NFS_READDIR,
-		     "Enter....");
+		     "Enter %p with cookie %lu, num_entries %lu",
+		     directory->obj_handle, cookie, num_entries);
 
 	/* readdir can be done only with a directory */
 	if (directory->type != DIRECTORY) {
@@ -646,18 +737,35 @@ cache_inode_readdir(cache_entry_t *directory,
 
 	PTHREAD_RWLOCK_rdlock(&directory->content_lock);
 	PTHREAD_RWLOCK_unlock(&directory->attr_lock);
+	cb_parms.attr_allowed = attr_status == CACHE_INODE_SUCCESS;
+	*nbfound = 0;
+	*eod_met = false;
 	if (!
 	    ((directory->flags & CACHE_INODE_TRUST_CONTENT)
 	     && (directory->flags & CACHE_INODE_DIR_POPULATED))) {
 		PTHREAD_RWLOCK_unlock(&directory->content_lock);
 		PTHREAD_RWLOCK_wrlock(&directory->content_lock);
-		status = cache_inode_readdir_populate(directory);
+		status = cache_inode_readdir_populate(directory,
+				cb_parms, cb, nbfound,
+				eod_met, cookie, num_entries);
 		if (status != CACHE_INODE_SUCCESS) {
 			LogFullDebug(COMPONENT_NFS_READDIR,
 				     "cache_inode_readdir_populate status=%s",
 				     cache_inode_err_str(status));
 			goto unlock_dir;
 		}
+	}
+
+	/* directory's entries are not cached */
+	if (!(directory->flags & CACHE_INODE_DIRENT_AVL_TREE)) {
+		LogDebug(COMPONENT_NFS_READDIR,
+			 "took uncached path. nbfound = %u, in_result = %s, eod_met = %s",
+			 *nbfound, cb_parms.in_result ? "TRUE" : "FALSE",
+			 *eod_met ? "TRUE" : "FALSE");
+		goto unlock_dir;
+	} else {
+		LogFullDebug(COMPONENT_NFS_READDIR,
+			     "proceeding to read entries from dirent cache\n");
 	}
 
 	/* deal with initial cookie value:
@@ -719,8 +827,6 @@ cache_inode_readdir(cache_entry_t *directory,
 
 	/* Now satisfy the request from the cached readdir--stop when either
 	 * the requested sequence or dirent sequence is exhausted */
-	*nbfound = 0;
-	*eod_met = false;
 
 	for (; cb_parms.in_result && dirent_node;
 	     dirent_node = avltree_next(dirent_node)) {
@@ -789,11 +895,11 @@ cache_inode_readdir(cache_entry_t *directory,
 			     dirent->name, dirent->hk.k, dirent->hk.p);
 
 		cb_parms.name = dirent->name;
-		cb_parms.attr_allowed = attr_status == CACHE_INODE_SUCCESS;
 		cb_parms.cookie = dirent->hk.k;
 
 		tmp_status =
-		    cache_inode_getattr(entry, &cb_parms, cb, CB_ORIGINAL);
+		    cache_inode_getattr(entry, &cb_parms, cb, CB_ORIGINAL,
+					false);
 
 		if (tmp_status != CACHE_INODE_SUCCESS) {
 			cache_inode_lru_unref(entry, LRU_FLAG_NONE);

@@ -336,13 +336,14 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
  * @return Result coming from the upper layer.
  */
 static bool nullfs_readdir_cb(const char *name, void *dir_state,
-			       fsal_cookie_t cookie)
+					fsal_cookie_t cookie,
+					struct fsal_obj_handle *obj_hdl)
 {
 	struct nullfs_readdir_state *state =
 		(struct nullfs_readdir_state *) dir_state;
 
 	op_ctx->fsal_export = &state->exp->export;
-	bool result = state->cb(name, state->dir_state, cookie);
+	bool result = state->cb(name, state->dir_state, cookie, obj_hdl);
 
 	op_ctx->fsal_export = state->exp->sub_export;
 
@@ -362,7 +363,8 @@ static bool nullfs_readdir_cb(const char *name, void *dir_state,
 
 static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence, void *dir_state,
-				  fsal_readdir_cb cb, bool *eof)
+				  fsal_readdir_cb cb, bool *eof,
+				  uint64_t num_entries)
 {
 	struct nullfs_fsal_obj_handle *handle =
 		container_of(dir_hdl, struct nullfs_fsal_obj_handle,
@@ -382,7 +384,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	op_ctx->fsal_export = export->sub_export;
 	fsal_status_t status =
 		handle->sub_handle->obj_ops.readdir(handle->sub_handle,
-		whence, &cb_state, nullfs_readdir_cb, eof);
+		whence, &cb_state, nullfs_readdir_cb, eof, 0);
 	op_ctx->fsal_export = &export->export;
 
 	return status;

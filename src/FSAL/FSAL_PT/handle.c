@@ -376,7 +376,8 @@ struct linux_dirent {
  */
 static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  uint64_t *whence, void *dir_state,
-				  fsal_readdir_cb cb, bool *eof)
+				  fsal_readdir_cb cb, bool *eof,
+				  int64_t num_entries);
 {
 	struct pt_fsal_obj_handle *myself;
 	int dirfd;

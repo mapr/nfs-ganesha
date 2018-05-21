@@ -1097,7 +1097,8 @@ static inline int sizeof_fsid(enum fsid_type type)
 typedef uint64_t fsal_cookie_t;
 
 typedef bool (*fsal_readdir_cb)(const char *name, void *dir_state,
-				fsal_cookie_t cookie);
+					fsal_cookie_t cookie,
+					struct fsal_obj_handle *obj_hdl);
 /**
  * @brief FSAL object operations vector
  */
@@ -1153,12 +1154,13 @@ struct fsal_obj_ops {
  * This function reads directory entries from the FSAL and supplies
  * them to a callback.
  *
- * @param[in]  dir_hdl   Directory to read
- * @param[in]  whence    Point at which to start reading.  NULL to
- *                       start at beginning.
- * @param[in]  dir_state Opaque pointer to be passed to callback
- * @param[in]  cb        Callback to receive names
- * @param[out] eof       true if the last entry was reached
+ * @param[in]  dir_hdl       Directory to read
+ * @param[in]  whence        Point at which to start reading.  NULL to
+ *                           start at beginning.
+ * @param[in]  dir_state     Opaque pointer to be passed to callback
+ * @param[in]  cb            Callback to receive names
+ * @param[out] eof           true if the last entry was reached
+ * @param[in]  num_entries   Directory entries to fetch in one RPC
  *
  * @retval true if more entries are required
  * @retval false if no more entries are required (and the current one
@@ -1168,7 +1170,8 @@ struct fsal_obj_ops {
 				  fsal_cookie_t *whence,
 				  void *dir_state,
 				  fsal_readdir_cb cb,
-				  bool *eof);
+				  bool *eof,
+				  uint64_t num_entries);
 /**@}*/
 
 /**@{*/
