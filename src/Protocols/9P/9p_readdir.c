@@ -284,7 +284,8 @@ int _9p_readdir(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 	cache_status = cache_inode_readdir(pfid->pentry, cookie, &num_entries,
 					   &eod_met,
 					   0,	/* no attr */
-					   _9p_readdir_callback, &tracker);
+					   _9p_readdir_callback, &tracker,
+					   0);
 	if (cache_status != CACHE_INODE_SUCCESS) {
 		/* The avl lookup will try to get the next entry after 'cookie'.
 		 * If none is found CACHE_INODE_NOT_FOUND is returned

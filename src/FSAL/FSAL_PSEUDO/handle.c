@@ -495,7 +495,8 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence,
 				  void *dir_state,
 				  fsal_readdir_cb cb,
-				  bool *eof)
+				  bool *eof,
+				  uint64_t num_entries)
 {
 	struct pseudo_fsal_obj_handle *myself, *hdl;
 	struct avltree_node *node;
@@ -533,7 +534,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		if (hdl->index < seekloc)
 			continue;
 
-		if (!cb(hdl->name, dir_state, hdl->index)) {
+		if (!cb(hdl->name, dir_state, hdl->index, NULL)) {
 			*eof = false;
 			break;
 		}

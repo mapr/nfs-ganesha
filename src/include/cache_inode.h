@@ -248,6 +248,8 @@ static const uint32_t CACHE_INODE_TRUST_ATTRS = 0x00000001;
 static const uint32_t CACHE_INODE_TRUST_CONTENT = 0x00000002;
 /** The directory has been populated (negative lookups are meaningful) */
 static const uint32_t CACHE_INODE_DIR_POPULATED = 0x00000004;
+/** The entries in the directory should be put in dirent avl tree cache */
+static const uint32_t CACHE_INODE_DIRENT_AVL_TREE = 0x00000008;
 
 /**
  * @brief The ref counted share reservation state.
@@ -752,7 +754,8 @@ cache_inode_status_t cache_inode_create(cache_entry_t *entry_parent,
 cache_inode_status_t cache_inode_getattr(cache_entry_t *entry,
 					 void *opaque,
 					 cache_inode_getattr_cb_t cb,
-					 enum cb_state cb_state);
+					 enum cb_state cb_state,
+					 bool trust_attrs);
 
 uint64_t cache_inode_fileid(cache_entry_t *entry);
 
@@ -840,7 +843,8 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t *directory,
 					 bool *eod_met,
 					 attrmask_t attrmask,
 					 cache_inode_getattr_cb_t cb,
-					 void *opaque);
+					 void *opaque,
+					 uint64_t estimated_num_entries);
 
 cache_inode_status_t cache_inode_add_cached_dirent(
 	cache_entry_t *parent, const char *name, cache_entry_t *entry,
@@ -1042,6 +1046,19 @@ cache_inode_refresh_attrs(cache_entry_t *entry)
 	cache_inode_fixup_md(entry);
 
  out:
+
+	/* check filesize and cache small files */
+	if ((entry->type == DIRECTORY) &&
+		(entry->obj_handle->attrs->filesize >
+		 nfs_param.nfsv4_param.dirent_cache_threshold)) {
+		LogFullDebug(COMPONENT_CACHE_INODE,
+			"hdl:%p directory entries:%lu, dirent_cache_threshold:%lu",
+			entry->obj_handle,
+			entry->obj_handle->attrs->filesize,
+			nfs_param.nfsv4_param.dirent_cache_threshold);
+		entry->flags &= ~CACHE_INODE_DIRENT_AVL_TREE;
+	}
+
 	return cache_status;
 }
 

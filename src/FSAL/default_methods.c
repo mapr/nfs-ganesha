@@ -577,7 +577,8 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 
 static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence, void *dir_state,
-				  fsal_readdir_cb cb, bool *eof)
+				  fsal_readdir_cb cb, bool *eof,
+				  uint64_t num_entries)
 {
 	return fsalstat(ERR_FSAL_NOTSUPP, 0);
 }

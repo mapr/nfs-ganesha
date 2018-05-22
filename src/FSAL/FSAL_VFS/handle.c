@@ -1009,7 +1009,8 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 
 static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence, void *dir_state,
-				  fsal_readdir_cb cb, bool *eof)
+				  fsal_readdir_cb cb, bool *eof,
+				  uint64_t num_entries)
 {
 	struct vfs_fsal_obj_handle *myself;
 	int dirfd;
@@ -1066,7 +1067,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 			/* callback to cache inode */
 			if (!cb(dentryp->vd_name, dir_state,
-				(fsal_cookie_t) dentryp->vd_offset)) {
+				(fsal_cookie_t) dentryp->vd_offset, NULL)) {
 				goto done;
 			}
  skip:

@@ -60,6 +60,7 @@
  * @param[in]     entry   Entry to be managed.
  * @param[in,out] opaque  Opaque pointer passed to callback
  * @param[in]     cb      User supplied callback
+ * @param[in]     trust_attr      Current attrs can be trusted
  *
  * @return Errors from cache_inode_lock_trust_attributes or the user
  *         supplied callback.
@@ -69,7 +70,8 @@ cache_inode_status_t
 cache_inode_getattr(cache_entry_t *entry,
 		    void *opaque,
 		    cache_inode_getattr_cb_t cb,
-		    enum cb_state cb_state)
+		    enum cb_state cb_state,
+		    bool trust_attrs)
 {
 	cache_inode_status_t status;
 	struct gsh_export *junction_export = NULL;
@@ -78,11 +80,13 @@ cache_inode_getattr(cache_entry_t *entry,
 
 	/* Lock (and refresh if necessary) the attributes, copy them
 	   out, and unlock. */
-	status = cache_inode_lock_trust_attrs(entry, false);
-	if (status != CACHE_INODE_SUCCESS) {
-		LogDebug(COMPONENT_CACHE_INODE, "Failed %s",
-			 cache_inode_err_str(status));
-		return status;
+	if (!trust_attrs) {
+		status = cache_inode_lock_trust_attrs(entry, false);
+		if (status != CACHE_INODE_SUCCESS) {
+			LogDebug(COMPONENT_CACHE_INODE, "Failed %s",
+				 cache_inode_err_str(status));
+			return status;
+		}
 	}
 
 	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
@@ -146,7 +150,8 @@ cache_inode_getattr(cache_entry_t *entry,
 		status = cache_inode_getattr(junction_entry,
 					     opaque,
 					     cb,
-					     CB_JUNCTION);
+					     CB_JUNCTION,
+					     false);
 
 		cache_inode_put(junction_entry);
 		put_gsh_export(junction_export);
