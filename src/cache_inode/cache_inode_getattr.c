@@ -87,6 +87,8 @@ cache_inode_getattr(cache_entry_t *entry,
 				 cache_inode_err_str(status));
 			return status;
 		}
+	} else {
+		PTHREAD_RWLOCK_rdlock(&entry->attr_lock);
 	}
 
 	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
