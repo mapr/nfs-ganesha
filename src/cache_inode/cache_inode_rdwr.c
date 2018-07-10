@@ -270,7 +270,18 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 	attributes_locked = true;
 	if (io_direction == CACHE_INODE_WRITE ||
 	    io_direction == CACHE_INODE_WRITE_PLUS) {
-		status = cache_inode_refresh_attrs(entry);
+
+		bool canRefresh = nfs_param.nfsv4_param.post_write_attrs_update ?
+			true : !cache_inode_is_attrs_valid(entry);
+		LogDebug(COMPONENT_CACHE_INODE,
+			"cache_inode_rdwr: post_write_attrs_update=%d, Can refresh attributes=%d",
+			nfs_param.nfsv4_param.post_write_attrs_update,
+			canRefresh);
+
+		if (canRefresh)
+			status = cache_inode_refresh_attrs(entry);
+		else
+			status = CACHE_INODE_SUCCESS;
 		if (status != CACHE_INODE_SUCCESS)
 			goto out;
 	} else
