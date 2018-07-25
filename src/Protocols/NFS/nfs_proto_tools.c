@@ -2512,7 +2512,7 @@ const struct fattr4_dent fattr4tab[FATTR4_SEC_LABEL + 1] = {
 	,
 	[FATTR4_ARCHIVE] = {
 		.name = "FATTR4_ARCHIVE",
-		.supported = 1,
+		.supported = 0,
 		.size_fattr4 = sizeof(fattr4_archive),
 		.encode = encode_archive,
 		.decode = decode_archive,
@@ -2601,7 +2601,7 @@ const struct fattr4_dent fattr4tab[FATTR4_SEC_LABEL + 1] = {
 	,
 	[FATTR4_HIDDEN] = {
 		.name = "FATTR4_HIDDEN",
-		.supported = 1,
+		.supported =0,
 		.size_fattr4 = sizeof(fattr4_hidden),
 		.encode = encode_hidden,
 		.decode = decode_hidden,
