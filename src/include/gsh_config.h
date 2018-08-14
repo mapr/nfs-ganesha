@@ -163,6 +163,11 @@ typedef enum protos {
 #define NUM_LOG_FILES 32
 
 /**
+ * Default value for core_param.max_logfile_size
+ */
+#define MAX_LOGFILE_SIZE (1024 * 1024 * 1024)
+
+/**
  * @brief Support NFSv3
  */
 
@@ -369,6 +374,8 @@ typedef struct nfs_core_param {
 	bool dirent_entries_track;
 	/* Number of log files */
 	uint32_t num_log_files;
+	/* Max log file size */
+	uint32_t max_logfile_size;
 } nfs_core_parameter_t;
 
 /** @} */

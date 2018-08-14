@@ -119,6 +119,10 @@ int global_id = 0;
 __thread int id = -1;
 __thread log_file_t *lbuffer_thr = NULL;
 
+/* Variables for log rotate */
+
+const int MAX_OLD_LOGFILES = 5;
+
 /* Variables to control log fields */
 
 /**
@@ -251,6 +255,8 @@ static int log_to_stream(log_header_t headers, void *private,
 			 struct display_buffer *buffer, char *compstr,
 			 char *message);
 
+static inline bool rotate_log(int fd, log_file_t *file);
+static void rotate_old_log_files(log_file_t *file);
 static void flush_log_file(int i, bool periodic, bool close_fd);
 
 static void *log_flusher(void *arg);
@@ -1403,7 +1409,7 @@ static int log_to_file2(log_header_t headers, void *private,
 			}
 
 			snprintf(newbuf->path, MAXPATHLEN+1, "%s-%d", path, id);
-			fd = open(newbuf->path, O_WRONLY | O_SYNC |
+			fd = open(newbuf->path, O_WRONLY |
 						O_APPEND | O_CREAT,
 						log_mask);
 			if (fd == -1) {
@@ -1452,9 +1458,11 @@ static void flush_log_file(int i, bool periodic, bool close_fd)
 	log_file_t *file = lbuffer[i];
 	int fd = file->log_fd;
 	int rc;
+	bool is_newfd = false; /* If log rotated, dont flush and close fd
+					as new log file/fd is created */
 
 	if (fd == -1) {
-		fd = open(file->path, O_WRONLY | O_SYNC | O_APPEND | O_CREAT,
+		fd = open(file->path, O_WRONLY | O_APPEND | O_CREAT,
 					log_mask);
 		if (fd == -1) {
 			fprintf(stderr,
@@ -1483,7 +1491,8 @@ static void flush_log_file(int i, bool periodic, bool close_fd)
 		return;
 	}
 
-	if (periodic) {
+	is_newfd = rotate_log(fd, file); /* Rotate log files */
+	if (periodic && !is_newfd) {
 		fdatasync(fd);
 		if (close_fd) {
 			(void)close(fd);
@@ -1492,6 +1501,56 @@ static void flush_log_file(int i, bool periodic, bool close_fd)
 	}
 
 	file->buf_offset = 0;
+}
+
+static inline bool rotate_log(int fd, log_file_t *file) {
+	struct stat st;
+	/* Each log rotated will be 1/5 of max log file size given as nfs conf parameter
+	 * or 200MB by default */
+	int max_logfile_size = (nfs_param.core_param.max_logfile_size / 5);
+
+	if (fstat(fd, &st) != 0) {
+		fprintf(stderr, "Error: Thread %u failed to stat file %s, errno %d\n",
+				id, file->path, errno);
+	}
+	
+	if (st.st_size >= max_logfile_size) {
+		fdatasync(fd);
+		(void)close(fd);
+		file->log_fd = -1;
+		rotate_old_log_files(file);
+		return true;
+	}
+	return false;
+}
+
+static void rotate_old_log_files(log_file_t *file) {
+	char curr_filename[MAXPATHLEN + 1];
+	char new_filename[MAXPATHLEN + 1];
+
+	/* Rename old files */
+	int i = 0;
+	for (i = MAX_OLD_LOGFILES - 1; i >= 1; --i) {
+		snprintf(curr_filename, sizeof(curr_filename), "%s.%d", file->path,
+				i);
+		snprintf(new_filename, sizeof(new_filename), "%s.%d", file->path,
+				i+1);
+		rename(curr_filename, new_filename);
+	}
+
+	/* Rename orignal file */
+	rename(file->path, curr_filename);
+
+	/* Open New File log file and assign fd */
+	int fd = 0;
+	fd = open(file->path, O_WRONLY | O_APPEND | O_CREAT, log_mask);
+	if (fd == -1) {
+		fprintf(stderr,
+				"Error: Thread %u failed to open file %s, errno %d\n",
+				id, file->path, errno);
+		return;
+	}
+	file->log_fd = fd;
 }
 
 void flush_all_logs(bool close_fd)
