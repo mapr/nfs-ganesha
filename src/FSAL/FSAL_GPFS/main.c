@@ -240,7 +240,7 @@ MODULE_INIT void gpfs_init(void)
 		gpfs_max_fh_size = OPENHANDLE_HANDLE_LEN;
 
 	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_GPFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_GPFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "GPFS module failed to register");
 		return;

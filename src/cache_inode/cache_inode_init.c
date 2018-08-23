@@ -40,6 +40,8 @@
 #include "cache_inode.h"
 #include "cache_inode_hash.h"
 
+extern void mapr_exit(int exit_status);
+
 /**
  *
  * @brief Initialize the caching layer
@@ -58,7 +60,7 @@ dirent_entries_monitor(void *notused)
 		if (number_of_dirent_entries > 100*1000*1000) {
 			LogCrit(COMPONENT_CACHE_INODE,
 			"Number of dirent entries are more than 100M Exiting");
-			exit(9);
+			mapr_exit(9);
 		}
 		sleep(15);
 	}

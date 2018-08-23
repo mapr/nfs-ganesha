@@ -186,7 +186,7 @@ MODULE_INIT void vfs_init(void)
 	struct fsal_module *myself = &VFS.fsal;
 
 	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_VFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_VFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "VFS module failed to register");
 		return;

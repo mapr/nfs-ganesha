@@ -337,7 +337,7 @@ MODULE_INIT void hpss_load(void)
 	retval = register_fsal(myself, myname,
 			       FSAL_MAJOR_VERSION,
 			       FSAL_MINOR_VERSION,
-			       FSAL_ID_NO_PNFS);
+			       FSAL_ID_NO_PNFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "HPSS module failed to register");
 		return;

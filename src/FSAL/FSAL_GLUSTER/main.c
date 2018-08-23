@@ -134,7 +134,7 @@ MODULE_INIT void glusterfs_init(void)
 	}
 
 	if (register_fsal(&glfsal_module->fsal, glfsal_name, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_GLUSTER) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_GLUSTER, NULL) != 0) {
 		gsh_free(glfsal_module);
 		LogCrit(COMPONENT_FSAL,
 			"Gluster FSAL module failed to register.");

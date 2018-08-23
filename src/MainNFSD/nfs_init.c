@@ -107,6 +107,16 @@ char *config_path = GANESHA_CONFIG_PATH;
 
 char *pidfile_path = GANESHA_PIDFILE_PATH;
 
+void mapr_exit(int exit_status)
+{
+	if (fsal_dump_logs_fn) {
+		fsal_dump_logs_fn();
+	}
+	fflush(stdout);
+	fflush(stderr);
+	_exit(exit_status);
+}
+
 /**
  * @brief This thread is in charge of signal management
  *
@@ -338,6 +348,7 @@ int init_server_pkgs(void)
       return -1;
     }
   }
+
 	/* init uid2grp cache */
 	uid2grp_cache_init();
 
@@ -699,7 +710,7 @@ static void nfs_Init(const nfs_start_info_t *p_start_info)
 	if (_9p_init()) {
 		LogCrit(COMPONENT_INIT,
 			"Error while initializing 9P Resources");
-		exit(1);
+		mapr_exit(1);
 	}
 	LogInfo(COMPONENT_INIT, "9P resources successfully initialized");
 #endif				/* _USE_9P */
@@ -815,7 +826,7 @@ void nfs_start(nfs_start_info_t *p_start_info)
 
 	if (p_start_info->dump_default_config == true) {
 		nfs_print_param_config();
-		exit(0);
+		mapr_exit(0);
 	}
 
 	/* Make sure Ganesha runs with a 0000 umask. */

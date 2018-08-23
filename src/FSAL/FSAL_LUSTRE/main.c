@@ -242,7 +242,7 @@ MODULE_INIT void lustre_init(void)
 	struct fsal_module *myself = &LUSTRE.fsal;
 
 	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_LUSTRE);
+			       FSAL_MINOR_VERSION, FSAL_ID_LUSTRE, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "LUSTRE module failed to register");
 		return;
