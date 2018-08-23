@@ -156,7 +156,7 @@ void pseudo_fsal_init(void)
 	struct fsal_module *myself = &PSEUDOFS.fsal;
 
 	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "PSEUDO module failed to register");
 		return;
