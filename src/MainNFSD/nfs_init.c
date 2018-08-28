@@ -112,6 +112,7 @@ void mapr_exit(int exit_status)
 	if (fsal_dump_logs_fn) {
 		fsal_dump_logs_fn();
 	}
+	flush_all_logs(true /*close_fd*/);
 	fflush(stdout);
 	fflush(stderr);
 	_exit(exit_status);
@@ -150,6 +151,9 @@ static void *sigmgr_thread(void *UnusedArg)
 		}
 	}
 	LogDebug(COMPONENT_THREAD, "sigmgr thread exiting");
+    flush_all_logs(true /*close_fd*/);
+    fflush(stdout);
+    fflush(stderr);
 
 	admin_halt();
 
