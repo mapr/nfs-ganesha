@@ -531,6 +531,11 @@ struct cache_entry_t {
 			struct glist_head export_roots;
 		} dir;		/*< DIRECTORY data */
 	} object;
+	/** size_changeid is used to check the local entry
+	setattr operation on size - typicall from truncate
+	operation on the entry - helps in rdwr()
+	protected by content and attr lock  */
+	uint64_t size_changeid;
 };
 
 /**
