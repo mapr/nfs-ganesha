@@ -306,7 +306,6 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 		} else {
 			if (obj_hdl->attrs->filesize < attrsize.file_size)
 				obj_hdl->attrs->filesize = attrsize.file_size;
-			cache_inode_set_time_current(&obj_hdl->attrs->mtime);
 			status = CACHE_INODE_SUCCESS;
 		}
 		if (status != CACHE_INODE_SUCCESS)
