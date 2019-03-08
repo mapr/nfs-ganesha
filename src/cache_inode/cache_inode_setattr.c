@@ -201,7 +201,10 @@ cache_inode_setattr(cache_entry_t *entry,
 	/* Copy the complete set of new attributes out. */
 
 	*attr = *entry->obj_handle->attrs;
-
+	if (attr->mask & (ATTR_SIZE | ATTR4_SPACE_RESERVED)) {
+		/*protected by content_lock and attr_lock*/
+		entry->size_changeid++;
+	}
 	status = CACHE_INODE_SUCCESS;
 
 unlock:
