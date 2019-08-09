@@ -1388,6 +1388,16 @@ static bool proc_block(struct config_node *node,
 	}
 	if (item->u.blk.display != NULL)
 		item->u.blk.display("RESULT", node, link_mem, param_struct);
+
+  if (err_type->dispose) {
+    /* We had a config update case where this block must be
+     * disposed of. Need to clear the flag so the next config
+     * block processed gets a clear slate.
+     */
+    (void)item->u.blk.init(link_mem, param_struct);
+    err_type->dispose = false;
+  }
+
 	return true;
 
 err_out:
