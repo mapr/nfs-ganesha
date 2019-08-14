@@ -107,15 +107,66 @@ char *config_path = GANESHA_CONFIG_PATH;
 
 char *pidfile_path = GANESHA_PIDFILE_PATH;
 
-void mapr_exit(int exit_status)
+/**
+ * @brief Reread the configuration file to accomplish update of options.
+ *
+ * The following option blocks are currently supported for update:
+ *
+ * LOG {}
+ * LOG { COMPONENTS {} }
+ * LOG { FACILITY {} }
+ * LOG { FORMAT {} }
+ * EXPORT {}
+ * EXPORT { CLIENT {} }
+ *
+ */
+
+void reread_config(void)
 {
-	if (fsal_dump_logs_fn) {
-		fsal_dump_logs_fn();
-	}
-	flush_all_logs(true /*close_fd*/);
-	fflush(stdout);
-	fflush(stderr);
-	_exit(exit_status);
+  int status = 0;
+  int i;
+  config_file_t config_struct;
+  struct config_error_type err_type;
+
+  /* Clear out the flag indicating component was set from environment. */
+  for (i = COMPONENT_ALL; i < COMPONENT_COUNT; i++)
+    LogComponents[i].comp_env_set = false;
+
+  /* If no configuration file is given, then the caller must want to
+   * reparse the configuration file from startup.
+   */
+  if (config_path[0] == '\0') {
+    LogCrit(COMPONENT_CONFIG,
+            "No configuration file was specified for reloading log config.");
+    return;
+  }
+
+  /* Create a memstream for parser+processing error messages */
+  if (!init_error_type(&err_type))
+    return;
+  /* Attempt to parse the new configuration file */
+  config_struct = config_ParseFile(config_path, &err_type);
+  if (!config_error_no_error(&err_type)) {
+    config_Free(config_struct);
+    LogCrit(COMPONENT_CONFIG,
+            "Error while parsing new configuration file %s",
+            config_path);
+    report_config_errors(&err_type, NULL, config_errs_to_log);
+    return;
+  }
+
+  /* Update the logging configuration */
+  status = read_log_config(config_struct, &err_type);
+  if (status < 0)
+    LogCrit(COMPONENT_CONFIG, "Error while parsing LOG entries");
+
+  /* Update the export configuration */
+  status = reread_exports(config_struct, &err_type);
+  if (status < 0)
+    LogCrit(COMPONENT_CONFIG, "Error while parsing EXPORT entries");
+
+  report_config_errors(&err_type, NULL, config_errs_to_log);
+  config_Free(config_struct);
 }
 
 /**
@@ -145,8 +196,7 @@ static void *sigmgr_thread(void *UnusedArg)
 		if (signal_caught == SIGHUP) {
 			LogEvent(COMPONENT_MAIN,
 				 "SIGHUP_HANDLER: Received SIGHUP.... initiating export list reload");
-			admin_replace_exports();
-			reread_log_config();
+			reread_config();
 			svcauth_gss_release_cred();
 		}
 	}
@@ -513,6 +563,17 @@ static void nfs_Start_threads(void)
 	}
 	LogEvent(COMPONENT_THREAD, "General fridge was started successfully");
 
+}
+
+void mapr_exit(int exit_status)
+{
+	if (fsal_dump_logs_fn) {
+		fsal_dump_logs_fn();
+	}
+	flush_all_logs(true /*close_fd*/);
+	fflush(stdout);
+	fflush(stderr);
+	_exit(exit_status);
 }
 
 /**

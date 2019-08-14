@@ -157,7 +157,6 @@ void DisplayLogComponentLevel(log_components_t component, char *file, int line,
 
 int read_log_config(config_file_t in_config,
 		    struct config_error_type *err_type);
-void reread_log_config(void);
 
 typedef enum log_type {
 	SYSLOG = 0,

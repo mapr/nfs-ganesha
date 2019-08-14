@@ -539,6 +539,38 @@ static int client_commit(void *node, void *link_mem, void *self_struct,
 }
 
 /**
+ * @brief Clean up EXPORT path strings
+ */
+void clean_export_paths(struct gsh_export *export)
+{
+  /* Some admins stuff a '/' at  the end for some reason.
+   * chomp it so we have a /dir/path/basename to work
+   * with. But only if it's a non-root path starting
+   * with /.
+   */
+  if (export->fullpath[0] == '/') {
+    int pathlen;
+
+    pathlen = strlen(export->fullpath);
+    while ((export->fullpath[pathlen - 1] == '/') &&
+           (pathlen > 1))
+      pathlen--;
+    export->fullpath[pathlen] = '\0';
+  }
+
+  /* Remove trailing slash */
+  if (export->pseudopath && export->pseudopath[0] == '/') {
+    int pathlen;
+
+    pathlen = strlen(export->pseudopath);
+    while ((export->pseudopath[pathlen - 1] == '/') &&
+           (pathlen > 1))
+      pathlen--;
+    export->pseudopath[pathlen] = '\0';
+  }
+}
+
+/**
  * @brief Commit a FSAL sub-block
  *
  * Use the Name parameter passed in via the link_mem to lookup the
@@ -595,9 +627,7 @@ static int fsal_commit(void *node, void *link_mem, void *self_struct,
 		export->pseudopath[pathlen] = '\0';
 	}
 
-	status = fsal->m_ops.create_export(fsal,
-					   node, err_type,
-					  &fsal_up_top);
+  status = fsal->m_ops.create_export(fsal, node, err_type, &fsal_up_top);
 	if ((export->options_set & EXPORT_OPTION_EXPIRE_SET) == 0)
 		export->expire_time_attr = cache_param.expire_time_attr;
 
@@ -641,6 +671,98 @@ static int fsal_commit(void *node, void *link_mem, void *self_struct,
 err:
 	release_root_op_context();
 	return errcnt;
+}
+
+/**
+ * @brief Commit a FSAL sub-block for export update
+ *
+ * Use the Name parameter passed in via the link_mem to lookup the
+ * fsal.  If the fsal is not loaded (yet), load it and call its init.
+ *
+ * Create an export and pass the FSAL sub-block to it so that the
+ * fsal method can process the rest of the parameters in the block
+ */
+static int fsal_update_cfg_commit(void *node, void *link_mem, void *self_struct,
+                                  struct config_error_type *err_type)
+{
+  struct fsal_export **exp_hdl = link_mem;
+  struct gsh_export *probe_exp;
+  struct gsh_export *export =
+    container_of(exp_hdl, struct gsh_export, fsal_export);
+  struct root_op_context root_op_context;
+  uint64_t MaxRead, MaxWrite;
+
+  /* Determine if this is actually an update */
+  probe_exp = get_gsh_export(export->export_id);
+
+  if (probe_exp == NULL) {
+    /* Export not found by ID, assume it's a new export. */
+    return fsal_commit(node, link_mem, self_struct, err_type);
+  }
+
+  /** @todo - we really should verify update of FSAL options in
+   *          export, at the moment any changes there will be
+   *          ignored. In fact, we can't even process the
+   *          FSAL name...
+   */
+
+  /* We have to clean the export paths so we can properly compare them
+   * later.
+   */
+  clean_export_paths(export);
+
+  //PTHREAD_RWLOCK_rdlock(&export_opt_lock);
+
+  if ((export->options_set & EXPORT_OPTION_EXPIRE_SET) == 0)
+    export->expire_time_attr = cache_param.expire_time_attr;
+  /* //This export_opt.export_time_attr is defined in Commit '27ef33e4' of main nfs-ganesha code base
+     export->expire_time_attr = export_opt.expire_time_attr;
+     */
+
+  //PTHREAD_RWLOCK_unlock(&export_opt_lock);
+
+  /* We don't assign export->fsal_export because we don't have a new
+   * fsal_export to later release...
+   */
+
+  /* Initialize req_ctx from the probe_exp */
+  init_root_op_context(&root_op_context, probe_exp,
+                       probe_exp->fsal_export, 0, 0, UNKNOWN_REQUEST);
+
+  /* Now validate maxread/write etc with fsal params based on the
+   * original export, which will then allow us to validate the
+   * possibly changed values in the new export config.
+   */
+  MaxRead = probe_exp->fsal_export->
+    exp_ops.fs_maxread(probe_exp->fsal_export);
+  MaxWrite = probe_exp->fsal_export->
+    exp_ops.fs_maxwrite(probe_exp->fsal_export);
+
+  release_root_op_context();
+
+  if (export->MaxRead > MaxRead && MaxRead != 0) {
+    LogInfo(COMPONENT_CONFIG,
+            "Readjusting MaxRead to FSAL, %" PRIu64 " -> %" PRIu64,
+            export->MaxRead,
+            MaxRead);
+    export->MaxRead = MaxRead;
+  }
+
+  if (export->MaxWrite > MaxWrite && MaxWrite != 0) {
+    LogInfo(COMPONENT_CONFIG,
+            "Readjusting MaxWrite to FSAL, %"PRIu64" -> %"PRIu64,
+            export->MaxWrite,
+            MaxWrite);
+    export->MaxWrite = MaxWrite;
+  }
+
+  LogDebug(COMPONENT_CONFIG,
+           "Export %d FSAL config update processed",
+           export->export_id);
+
+  put_gsh_export(probe_exp);
+
+  return 0;
 }
 
 /**
@@ -689,6 +811,41 @@ static void *export_init(void *link_mem, void *self_struct)
 	}
 }
 
+static inline int strcmp_null(const char *s1, const char *s2)
+{
+  if (s1 == s2) {
+    /* Both strings are NULL or both are same pointer */
+    return 0;
+  }
+
+  if (s1 == NULL) {
+    /* First string is NULL, consider that LESS than */
+    return -1;
+  }
+
+  if (s2 == NULL) {
+    /* Second string is NULL, consider that GREATER than */
+    return 1;
+  }
+
+  return strcmp(s1, s2);
+}
+
+static inline void update_atomic_fields(struct gsh_export *export,
+                                        struct gsh_export *src)
+{
+  atomic_store_uint64_t(&export->MaxRead, src->MaxRead);
+  atomic_store_uint64_t(&export->MaxWrite, src->MaxWrite);
+  atomic_store_uint64_t(&export->PrefRead, src->PrefRead);
+  atomic_store_uint64_t(&export->PrefWrite, src->PrefWrite);
+  atomic_store_uint64_t(&export->PrefReaddir, src->PrefReaddir);
+  atomic_store_uint64_t(&export->MaxOffsetWrite, src->MaxOffsetWrite);
+  atomic_store_uint64_t(&export->MaxOffsetRead, src->MaxOffsetRead);
+  atomic_store_uint32_t(&export->options, src->options);
+  atomic_store_uint32_t(&export->options_set, src->options_set);
+  atomic_store_int32_t(&export->expire_time_attr, src->expire_time_attr);
+}
+
 /**
  * @brief Commit an export block
  *
@@ -696,16 +853,21 @@ static void *export_init(void *link_mem, void *self_struct)
  * parameters are already done.
  */
 
+enum export_commit_type {
+  initial_export,
+  add_export,
+  update_export,
+};
+
 static int export_commit_common(void *node, void *link_mem, void *self_struct,
 				struct config_error_type *err_type,
-				bool add_export)
+				enum export_commit_type commit_type)
 {
-	struct gsh_export *export, *probe_exp;
+  struct gsh_export *export = self_struct, *probe_exp;
 	int errcnt = 0;
 	char perms[1024];
 
-	export = self_struct;
-
+  LogFullDebug(COMPONENT_EXPORT, "Processing %p", export);
 	/* validate the export now */
 	if (export->export_perms.options & EXPORT_OPTION_NFSV4) {
 		if (export->pseudopath == NULL) {
@@ -754,17 +916,150 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	if (errcnt)
 		goto err_out;  /* have basic errors. don't even try more... */
 
-	/* export->fsal_export is valid iff fsal_commit succeeds.
-	 * Config code calls export_commit even if fsal_commit fails at
-	 * the moment, so error out here if fsal_commit failed.
-	 */
-	if (export->fsal_export == NULL) {
-		err_type->validate = true;
-		errcnt++;
-		goto err_out;
-	}
+  /* Note: need to check export->fsal_export AFTER we have checked for
+   * duplicate export_id. That is because an update export WILL NOT
+   * have fsal_export attached.
+   */
 
 	probe_exp = get_gsh_export(export->export_id);
+
+  if (commit_type == update_export && probe_exp != NULL) {
+    /* We have an actual update case, probe_exp is the target
+     * to update. Check all the options that MUST match.
+     * Note that Path/fullpath will not be NULL, but we compare
+     * the same way as the other string options for code
+     * consistency.
+     */
+    LogFullDebug(COMPONENT_EXPORT, "Updating %p", probe_exp);
+
+    LogMidDebug(COMPONENT_EXPORT, "Old Client List");
+    //TODO: define display_clients
+    //display_clients(probe_exp);
+
+    LogMidDebug(COMPONENT_EXPORT, "New Client List");
+    //TODO: define display_clients
+    //display_clients(export);
+
+    if (strcmp_null(export->FS_tag,
+                    probe_exp->FS_tag) != 0) {
+      /* Tag does not match, currently not a candidate for
+       * update.
+       */
+      LogCrit(COMPONENT_CONFIG,
+              "Tag for export update %d doesn't match",
+              export->export_id);
+      err_type->invalid = true;
+      errcnt++;
+    }
+
+    if (strcmp_null(export->pseudopath,
+                    probe_exp->pseudopath) != 0) {
+      /* Pseudo does not match, currently not a candidate for
+       * update.
+       */
+      LogCrit(COMPONENT_CONFIG,
+              "Pseudo for export update %d doesn't match",
+              export->export_id);
+      err_type->invalid = true;
+      errcnt++;
+    }
+
+    if (strcmp_null(export->fullpath,
+                    probe_exp->fullpath) != 0) {
+      /* Path does not match, currently not a candidate for
+       * update.
+       */
+      LogCrit(COMPONENT_CONFIG,
+              "Path for export update %d doesn't match",
+              export->export_id);
+      err_type->invalid = true;
+      errcnt++;
+    }
+
+    /* At present Filesystem_Id is not updateable, check that
+     * it did not change.
+     */
+    if (probe_exp->filesystem_id.major
+        != export->filesystem_id.major ||
+        probe_exp->filesystem_id.minor
+        != export->filesystem_id.minor) {
+      LogCrit(COMPONENT_CONFIG,
+              "Filesystem_Id for export update %d doesn't match",
+              export->export_id);
+      err_type->invalid = true;
+      errcnt++;
+    }
+
+    /* We can't compare the FSAL names because we don't actually
+     * have an fsal_export for "export".
+     */
+    /* TODO: decide to keep following 'if' condition or not
+    if (probe_exp->fsal_export->fsal != export->fsal_export->fsal) {
+      LogCrit(COMPONENT_CONFIG,
+              "FSAL for export update %d doesn't match",
+              export->export_id);
+      err_type->invalid = true;
+      errcnt++;
+    }
+    */
+    if (errcnt > 0) {
+      put_gsh_export(probe_exp);
+      goto err_out;
+    }
+
+    /* Update atomic fields */
+    update_atomic_fields(probe_exp, export);
+
+    if (errcnt > 0) {
+      put_gsh_export(probe_exp);
+      goto err_out;
+    }
+    /* Now take lock and swap out client list and export_perms... */
+    PTHREAD_RWLOCK_wrlock(&probe_exp->lock);
+
+    /* Copy the export perms into the existing export. */
+    probe_exp->export_perms = export->export_perms;
+
+    /* Swap the client list from the new export and the existing
+     * export. When we then dispose of the new export, the
+     * old client list will also be disposed of.
+     */
+    LogMidDebug(COMPONENT_EXPORT,
+            "Original clients = (%p,%p) New clients = (%p,%p)",
+            probe_exp->clients.next, probe_exp->clients.prev,
+            export->clients.next, export->clients.prev);
+
+    LogMidDebug(COMPONENT_EXPORT,
+                "Original clients count = %zd ;New clients count = %zd",
+                glist_length(&probe_exp->clients),
+                glist_length(&export->clients));
+
+    glist_swap_lists(&probe_exp->clients, &export->clients);
+
+    PTHREAD_RWLOCK_unlock(&probe_exp->lock);
+
+    /* We will need to dispose of the config export since we
+     * updated the existing export.
+     */
+    err_type->dispose = true;
+
+    /* Release the reference to the updated export. */
+    put_gsh_export(probe_exp);
+    goto success;
+  }
+
+  LogMidDebug(COMPONENT_EXPORT,
+          "Clients = (%p,%p) next = (%p, %p)",
+          export->clients.next, export->clients.prev,
+          export->clients.next->next, export->clients.next->prev);
+
+  if (commit_type == update_export) {
+    /* We found a new export during export update, consider it
+     * an add_export for the rest of configuration.
+     */
+    commit_type = add_export;
+  }
+
 	if (probe_exp != NULL) {
 		LogDebug(COMPONENT_CONFIG,
 			 "Export %d already exists", export->export_id);
@@ -772,6 +1067,17 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 		err_type->exists = true;
 		errcnt++;
 	}
+
+  /* export->fsal_export is valid iff fsal_cfg_commit succeeds.
+   * Config code calls export_commit even if fsal_cfg_commit fails at
+   * the moment, so error out here if fsal_cfg_commit failed.
+   */
+  if (export->fsal_export == NULL) {
+    err_type->validate = true;
+    errcnt++;
+    goto err_out;
+  }
+
 	if (export->FS_tag != NULL) {
 		probe_exp = get_gsh_export_by_tag(export->FS_tag);
 		if (probe_exp != NULL) {
@@ -835,20 +1141,69 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	 * So add this export to mount work only if NFSv4 exported and
 	 * is not a dynamically added export.
 	 */
-	if (!add_export && export->export_perms.options & EXPORT_OPTION_NFSV4)
+  if (commit_type == initial_export &&
+      export->export_perms.options & EXPORT_OPTION_NFSV4)
 		export_add_to_mount_work(export);
 
+  if (commit_type != initial_export) {
+    /* add_export or update_export with new export_id. */
+    int rc = init_export_root(export);
+
+    if (rc) {
+      export_revert(export);
+      errcnt++;
+
+      switch (rc) {
+        case EINVAL:
+          err_type->invalid = true;
+          break;
+
+        case EFAULT:
+          err_type->internal = true;
+          break;
+
+        default:
+          err_type->resource = true;
+      }
+
+      goto err_out;
+    }
+
+    if (!mount_gsh_export(export)) {
+      export_revert(export);
+      err_type->internal = true;
+      errcnt++;
+      goto err_out;
+    }
+  }
+
+success:
 	StrExportOptions(&export->export_perms, perms);
 
-	LogInfo(COMPONENT_CONFIG,
-		"Export %d created at pseudo (%s) with path (%s) and tag (%s) perms (%s)",
-		export->export_id, export->pseudopath,
-		export->fullpath, export->FS_tag, perms);
+  LogInfo(COMPONENT_CONFIG,
+          "Export %d %s at pseudo (%s) with path (%s) and tag (%s) perms (%s)",
+          export->export_id,
+          commit_type == update_export ? "updated" : "created",
+          export->pseudopath,
+          export->fullpath, export->FS_tag, perms);
 
 	LogInfo(COMPONENT_CONFIG,
 		"Export %d has %zd defined clients", export->export_id,
 		glist_length(&export->clients));
-	put_gsh_export(export);
+
+  if (commit_type != update_export) {
+    /* For initial or add export, insert_gsh_export gave out
+     * two references, a sentinel reference for the export's
+     * presence in the export table, and one reference for our
+     * use here, drop that second reference now.
+     *
+     * In the case of update_export, we already dropped the
+     * reference to the updated export, and this export has
+     * no references and will be freed by the config code.
+     */
+    put_gsh_export(export);
+  }
+
 	return 0;
 
 err_out:
@@ -858,10 +1213,8 @@ err_out:
 static int export_commit(void *node, void *link_mem, void *self_struct,
 			 struct config_error_type *err_type)
 {
-	bool add_export = false; /* not a dynamic add export */
-
 	return export_commit_common(node, link_mem, self_struct, err_type,
-				    add_export);
+				    initial_export);
 }
 
 /**
@@ -894,37 +1247,20 @@ static void export_display(const char *step, void *node,
 static int add_export_commit(void *node, void *link_mem, void *self_struct,
 			     struct config_error_type *err_type)
 {
-	struct gsh_export *export = self_struct;
-	int errcnt = 0;
-	int status;
-	bool add_export = true; /* dynamic add export */
+  return export_commit_common(node, link_mem, self_struct, err_type,
+                              add_export);
+}
 
-	errcnt = export_commit_common(node, link_mem, self_struct, err_type,
-				      add_export);
-	if (errcnt != 0)
-		goto err_out;
-
-	status = init_export_root(export);
-	if (status) {
-		export_revert(export);
-		errcnt++;
-		if (status == EINVAL)
-			err_type->invalid = true;
-		else if (status == EFAULT)
-			err_type->internal = true;
-		else
-			err_type->resource = true;
-		goto err_out;
-	}
-
-	if (!mount_gsh_export(export)) {
-		export_revert(export);
-		err_type->internal = true;
-		errcnt++;
-	}
-
-err_out:
-	return errcnt;
+/**
+ * @brief Commit an update export
+ * commit the export
+ * init export root and mount it in pseudo fs
+ */
+static int update_export_commit(void *node, void *link_mem, void *self_struct,
+                                struct config_error_type *err_type)
+{
+  return export_commit_common(node, link_mem, self_struct, err_type,
+                              update_export);
 }
 
 /**
@@ -951,6 +1287,13 @@ static int export_defaults_commit(void *node, void *link_mem,
 				  void *self_struct,
 				  struct config_error_type *err_type)
 {
+	struct export_perms *defaults = self_struct;
+	char perms[1024];
+
+	StrExportOptions(defaults, perms);
+
+  LogInfo(COMPONENT_CONFIG, "Export Defaults now (%s)", perms);
+
 	return 0;
 }
 
@@ -1198,6 +1541,52 @@ static struct config_item fsal_params[] = {
 	CONFIG_EOL
 };
 
+ /**
+ * @brief Common EXPORT block parameters
+ */
+#define CONF_EXPORT_PARAMS(_struct_)         \
+ CONF_MAND_UI16("Export_id", 0, UINT16_MAX, 1,     \
+          _struct_, export_id),        \
+ CONF_MAND_PATH("Path", 1, MAXPATHLEN, NULL,     \
+          _struct_, fullpath), /* must chomp '/' */  \
+ CONF_UNIQ_PATH("Pseudo", 1, MAXPATHLEN, NULL,     \
+          _struct_, pseudopath),       \
+ CONF_ITEM_UI64("MaxRead", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,  \
+          _struct_, MaxRead),        \
+ CONF_ITEM_UI64("MaxWrite", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE, \
+          _struct_, MaxWrite),       \
+ CONF_ITEM_UI64("PrefRead", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE, \
+          _struct_, PrefRead),       \
+ CONF_ITEM_UI64("PrefWrite", 512, FSAL_MAXIOSIZE, FSAL_MAXIOSIZE,\
+          _struct_, PrefWrite),        \
+ CONF_ITEM_UI64("PrefReaddir", 512, FSAL_MAXIOSIZE, 16384, \
+          _struct_, PrefReaddir),        \
+ CONF_ITEM_FSID_SET("Filesystem_id", 666, 666,     \
+          _struct_, filesystem_id, /* major.minor */ \
+          EXPORT_OPTION_FSID_SET, options_set),    \
+ CONF_ITEM_STR("Tag", 1, MAXPATHLEN, NULL,     \
+         _struct_, FS_tag),        \
+ CONF_ITEM_UI64("MaxOffsetWrite", 512, UINT64_MAX, UINT64_MAX, \
+          _struct_, MaxOffsetWrite),     \
+ CONF_ITEM_UI64("MaxOffsetRead", 512, UINT64_MAX, UINT64_MAX,  \
+          _struct_, MaxOffsetRead),      \
+ CONF_ITEM_BOOLBIT_SET("UseCookieVerifier",      \
+   false, EXPORT_OPTION_USE_COOKIE_VERIFIER,   \
+   _struct_, options, options_set),      \
+ CONF_ITEM_BOOLBIT_SET("DisableReaddirPlus",     \
+   false, EXPORT_OPTION_NO_READDIR_PLUS,     \
+   _struct_, options, options_set),      \
+ CONF_ITEM_BOOLBIT_SET("Trust_Readdir_Negative_Cache",   \
+   false, EXPORT_OPTION_TRUST_READIR_NEGATIVE_CACHE, \
+   _struct_, options, options_set),      \
+ CONF_ITEM_BOOLBIT_SET("Disable_ACL",        \
+   false, EXPORT_OPTION_DISABLE_ACL,     \
+   _struct_, options, options_set),      \
+ CONF_ITEM_I32_SET("Attr_Expiration_Time", -1, INT32_MAX, 60,  \
+          _struct_, expire_time_attr,      \
+          EXPORT_OPTION_EXPIRE_SET, options_set)
+
+
 /**
  * @brief Table of EXPORT block parameters
  */
@@ -1275,6 +1664,29 @@ static struct config_block export_param = {
 	.blk_desc.u.blk.display = export_display
 };
 
+ /**
+ * @brief Table of EXPORT update block parameters
+ */
+
+static struct config_item export_update_params[] = {
+ CONF_EXPORT_PARAMS(gsh_export),
+ CONF_EXPORT_PERMS(gsh_export, export_perms),
+
+ /* NOTE: the Client and FSAL sub-blocks must be the *last*
+  * two entries in the list.  This is so all other
+  * parameters have been processed before these sub-blocks
+  * are processed.
+  */
+ CONF_ITEM_BLOCK("Client", client_params,
+     client_init, client_commit,
+     gsh_export, clients),
+ CONF_RELAX_BLOCK("FSAL", fsal_params,
+      fsal_init, fsal_update_cfg_commit,
+      gsh_export, fsal_export),
+ CONFIG_EOL
+};
+
+
 /**
  * @brief Top level definition for an ADD EXPORT block
  */
@@ -1289,6 +1701,19 @@ struct config_block add_export_param = {
 	.blk_desc.u.blk.display = export_display
 };
 
+/**
+ * @brief Top level definition for an UPDATE EXPORT block
+ */
+
+struct config_block update_export_param = {
+  .dbus_interface_name = "org.ganesha.nfsd.config.%d",
+  .blk_desc.name = "EXPORT",
+  .blk_desc.type = CONFIG_BLOCK,
+  .blk_desc.u.blk.init = export_init,
+  .blk_desc.u.blk.params = export_update_params,
+  .blk_desc.u.blk.commit = update_export_commit,
+  .blk_desc.u.blk.display = export_display
+};
 
 /**
  * @brief Top level definition for an EXPORT_DEFAULTS block
@@ -1493,6 +1918,45 @@ int ReadExports(config_file_t in_config,
 	}
 
 	return num_exp;
+}
+
+/**
+ * @brief Reread the export entries from the parsed configuration file.
+ *
+ * @param[in]  in_config    The file that contains the export list
+ *
+ * @return A negative value on error,
+ *         the number of export entries else.
+ */
+
+int reread_exports(config_file_t in_config,
+                   struct config_error_type *err_type)
+{
+  int rc, num_exp;
+
+  LogInfo(COMPONENT_CONFIG, "Reread exports");
+
+  rc = load_config_from_parse(in_config,
+                              &export_defaults_param,
+                              NULL,
+                              false,
+                              err_type);
+  if (rc < 0) {
+    LogCrit(COMPONENT_CONFIG, "Export defaults block error");
+    return -1;
+  }
+
+  num_exp = load_config_from_parse(in_config,
+                                   &update_export_param,
+                                   NULL,
+                                   false,
+                                   err_type);
+  if (num_exp < 0) {
+    LogCrit(COMPONENT_CONFIG, "Export block error");
+    return -1;
+  }
+
+  return num_exp;
 }
 
 static void FreeClientList(struct glist_head *clients)
