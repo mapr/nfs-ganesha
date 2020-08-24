@@ -218,7 +218,7 @@ option(USE_DBUS "enable DBUS protocol support" OFF)
 # Various DBUS enabled features
 option(USE_CB_SIMULATOR "enable callback simulator thread" OFF)
 
-option(USE_NFSIDMAP "Use of libnfsidmap for name resolution" ON)
+option(USE_NFSIDMAP "Use of libnfsidmap for name resolution" OFF)
 option(ENABLE_ERROR_INJECTION "enable error injection" OFF)
 option(ENABLE_VFS_DEBUG_ACL "Enable debug ACL store for VFS" OFF)
 option(ENABLE_RFC_ACL "Use all RFC ACL checks" OFF)
