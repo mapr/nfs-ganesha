@@ -689,7 +689,7 @@ struct nfs_client_id_t {
 	char cid_server_owner[MAXNAMLEN + 1];	/*< Server owner.
 						 * @note Why is this
 						 * stored per-client? */
-	char cid_server_scope[MAXNAMLEN + 1];	/*< Server scope */
+	char cid_server_scope[MAXNAMLEN + 13];	/*< Server scope */
 	unsigned int cid_nb_session;	/*< Number of sessions stored */
 	nfs41_session_slot_t cid_create_session_slot; /*< Cached response to
 							  last CREATE_SESSION */

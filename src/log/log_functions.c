@@ -1525,8 +1525,8 @@ static inline bool rotate_log(int fd, log_file_t *file) {
 }
 
 static void rotate_old_log_files(log_file_t *file) {
-	char curr_filename[MAXPATHLEN + 1];
-	char new_filename[MAXPATHLEN + 1];
+	char curr_filename[MAXPATHLEN + 5];
+	char new_filename[MAXPATHLEN + 5];
 
 	/* Rename old files */
 	int i = 0;
