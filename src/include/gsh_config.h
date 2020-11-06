@@ -458,9 +458,6 @@ typedef struct nfs_version4_parameter {
 	bool pnfs_ds;
 	/** Threshold to decide if the dirent cache should be used. */
 	uint64_t dirent_cache_threshold;
-	/** Check for bypassing refresh of attributes if valid.
-	Defaults to true */
-	bool post_write_attrs_update;
 } nfs_version4_parameter_t;
 
 /** @} */
