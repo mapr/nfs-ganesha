@@ -50,6 +50,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/statvfs.h>
+#include <sys/sysmacros.h>
 #if __FreeBSD__
 #include <sys/mount.h>
 #else

@@ -11,6 +11,7 @@
 #include "config.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
