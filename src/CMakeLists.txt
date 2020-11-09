@@ -158,6 +158,7 @@ endif(FREEBSD)
 if (LINUX)
     set(PLATFORM "LINUX")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_LARGEFILE64_SOURCE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-format-truncation")
     set(OS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include/os/linux")
     find_library(LIBDL dl)  # module loader
 endif(LINUX)

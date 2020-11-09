@@ -96,8 +96,6 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 	bool attributes_locked = false;
 	/* TRUE if we opened a previously closed FD */
 	bool opened = false;
-	struct post_attr_size attrsize;
-	uint64_t before = 0;
 
 	cache_inode_status_t status = CACHE_INODE_SUCCESS;
 
@@ -171,42 +169,25 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 	} else {
 		bool fsal_sync = *sync;
 
-		attrsize.file_size = 0;
-		attrsize.is_valid = false;
-
-		if (io_direction == CACHE_INODE_WRITE) {
-			if (nfs_param.nfsv4_param.post_write_attrs_update &&
-					(obj_hdl->obj_ops.write_post_attrs != NULL)) {
-				before = entry->size_changeid;
-				fsal_status =
-					obj_hdl->obj_ops.write_post_attrs(
-							obj_hdl, offset,
-							io_size, buffer,
-							bytes_moved,
-							&fsal_sync,
-							&attrsize);
-			} else {
-				fsal_status =
-					obj_hdl->obj_ops.write(obj_hdl,
-							offset, io_size,
-							buffer, bytes_moved,
-							&fsal_sync);
-			}
-		} else {
+		if (io_direction == CACHE_INODE_WRITE)
 			fsal_status =
-				obj_hdl->obj_ops.write_plus(obj_hdl, offset,
-						io_size, buffer,
-						bytes_moved, &fsal_sync,
-						info);
-		}
+			  obj_hdl->obj_ops.write(obj_hdl, offset,
+					      io_size, buffer, bytes_moved,
+					      &fsal_sync);
+		else
+			fsal_status =
+			  obj_hdl->obj_ops.write_plus(obj_hdl, offset,
+						   io_size, buffer,
+						   bytes_moved, &fsal_sync,
+						   info);
 		/* Alright, the unstable write is complete. Now if it was
 		   supposed to be a stable write we can sync to the hard
 		   drive. */
 
 		if (*sync && !(obj_hdl->obj_ops.status(obj_hdl) & FSAL_O_SYNC)
-				&& !fsal_sync && !FSAL_IS_ERROR(fsal_status)) {
+		    && !fsal_sync && !FSAL_IS_ERROR(fsal_status)) {
 			fsal_status = obj_hdl->obj_ops.commit(obj_hdl,
-					offset, io_size);
+							   offset, io_size);
 		} else {
 			*sync = fsal_sync;
 		}
@@ -288,32 +269,12 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 	PTHREAD_RWLOCK_wrlock(&entry->attr_lock);
 	attributes_locked = true;
 	if (io_direction == CACHE_INODE_WRITE ||
-			io_direction == CACHE_INODE_WRITE_PLUS) {
-		bool needRefresh = true;
-		if (nfs_param.nfsv4_param.post_write_attrs_update) {
-			needRefresh = !cache_inode_is_attrs_valid(entry);
-			if (!needRefresh && (!attrsize.is_valid ||
-						(before != entry->size_changeid))) {
-				needRefresh = true;
-			}
-		}
-		LogDebug(COMPONENT_CACHE_INODE,
-				"cache_inode_rdwr: post_write_attrs_update=%d, Can refresh attributes=%d",
-				nfs_param.nfsv4_param.post_write_attrs_update,
-				needRefresh);
-		if (needRefresh) {
-			status = cache_inode_refresh_attrs(entry);
-		} else {
-			if (obj_hdl->attrs->filesize < attrsize.file_size)
-				obj_hdl->attrs->filesize = attrsize.file_size;
-			status = CACHE_INODE_SUCCESS;
-		}
+	    io_direction == CACHE_INODE_WRITE_PLUS) {
+		status = cache_inode_refresh_attrs(entry);
 		if (status != CACHE_INODE_SUCCESS)
 			goto out;
-	} else {
+	} else
 		cache_inode_set_time_current(&obj_hdl->attrs->atime);
-	}
-
 	PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 	attributes_locked = false;
 

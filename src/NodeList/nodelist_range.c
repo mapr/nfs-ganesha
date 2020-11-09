@@ -402,7 +402,7 @@ int nl_rangelist_add_list(nl_rangelist_t *array, char *list)
 		end = begin;
 
 		/* process input list */
-		while (end != '\0' && end < in_list + in_list_size + 1) {
+		while (*end != '\0' && end < in_list + in_list_size + 1) {
 			while (isdigit(*end))
 				end++;
 			/* do something only if end was incremented */

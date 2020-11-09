@@ -359,11 +359,6 @@ struct io_hints {
 	uint32_t hints;
 };
 
-struct post_attr_size {
-	size_t file_size;
-	bool is_valid;
-};
-
 /**
  * @brief request op context
  *
@@ -1544,14 +1539,6 @@ struct fsal_obj_ops {
 				void *buffer,
 				size_t *wrote_amount,
 				bool *fsal_stable);
-
-	fsal_status_t (*write_post_attrs)(struct fsal_obj_handle *obj_hdl,
-				uint64_t offset,
-				size_t buffer_size,
-				void *buffer,
-				size_t *wrote_amount,
-				bool *fsal_stable,
-				struct post_attr_size *attrsize);
 /**
  * @brief Write data to a file plus
  *

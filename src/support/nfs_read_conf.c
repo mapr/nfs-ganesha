@@ -254,8 +254,6 @@ static struct config_item version4_params[] = {
 	CONF_ITEM_UI64("Dirent_Cache_Threshold", 0, UINT64_MAX,
 			DIRENT_CACHE_THRESHOLD_DEFAULT,
 			nfs_version4_parameter, dirent_cache_threshold),
-	CONF_ITEM_BOOL("Post_Write_Attrs_Update", true,
-			nfs_version4_parameter, post_write_attrs_update),
 	CONFIG_EOL
 };
 

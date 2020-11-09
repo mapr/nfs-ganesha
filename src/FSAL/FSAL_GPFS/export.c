@@ -36,6 +36,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <mntent.h>
 #include <sys/statfs.h>
 #include <sys/quota.h>
