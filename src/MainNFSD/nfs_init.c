@@ -144,6 +144,7 @@ char *nfs_pidfile_path = GANESHA_PIDFILE_PATH;
 
 char cid_server_owner[MAXNAMLEN+1]; /* max hostname length */
 char *cid_server_scope;
+extern void (*fsal_dump_logs_fn)(void);
 
 void mapr_exit(int exit_status)
 {
