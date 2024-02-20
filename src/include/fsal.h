@@ -147,11 +147,6 @@ void set_op_context_pnfs_ds(struct fsal_pnfs_ds *pds);
  */
 
 /**
- * Global fsal dump logs function
- */
-void (*fsal_dump_logs_fn)(void);
-
-/**
  * @brief Register a FSAL
  *
  * This function registers an FSAL with ganesha and initializes the
