@@ -747,7 +747,7 @@ enum nfs_req_result process_one_op(compound_data_t *data, nfsstat4 *status)
 {
 	const char *bad_op_state_reason = "";
 	int perm_flags;
-	log_components_t alt_component = COMPONENT_NFS_V4;
+	//log_components_t alt_component = COMPONENT_NFS_V4;
 	nfs_argop4 *thisarg = &data->argarray[data->oppos];
 	nfs_resop4 *thisres = &data->resarray[data->oppos];
 	enum nfs_req_result result;
@@ -863,7 +863,7 @@ enum nfs_req_result process_one_op(compound_data_t *data, nfsstat4 *status)
 				*status = NFS4ERR_ACCESS;
 
 			bad_op_state_reason = "Export permission failure";
-			alt_component = COMPONENT_EXPORT;
+			//alt_component = COMPONENT_EXPORT;
 			goto bad_op_state;
 		}
 	}
@@ -882,13 +882,13 @@ enum nfs_req_result process_one_op(compound_data_t *data, nfsstat4 *status)
 		/* Tally the response size */
 		data->resp_size += sizeof(nfs_opnum4) + sizeof(nfsstat4);
 
-		LogDebugAlt(COMPONENT_NFS_V4, alt_component,
-			    "Status of %s in position %d due to %s is %s, op response size = %"
-			    PRIu32" total response size = %"PRIu32,
-			    data->opname, data->oppos,
-			    bad_op_state_reason,
-			    nfsstat4_to_str(*status),
-			    data->op_resp_size, data->resp_size);
+		LogInfo(COMPONENT_NFS_V4,
+			"Status of %s in position %d due to %s is %s, op response size = %"
+			PRIu32" total response size = %"PRIu32,
+			data->opname, data->oppos,
+			bad_op_state_reason,
+			nfsstat4_to_str(*status),
+			data->op_resp_size, data->resp_size);
 
 		/* All the operation, like NFS4_OP_ACCESS, have
 		 * a first replied field called .status
@@ -1059,9 +1059,31 @@ void complete_nfs4_compound(compound_data_t *data, int status,
 		PTHREAD_MUTEX_unlock(&data->preserved_clientid->cid_mutex);
 	}
 
-	if (status != NFS4_OK)
-		LogDebug(COMPONENT_NFS_V4, "End status = %s lastindex = %d",
-			 nfsstat4_to_str(status), data->oppos);
+	if (status != NFS4_OK) {
+
+		if (likely(component_log_level[COMPONENT_NFS_V4] < NIV_DEBUG)) {
+			int j;
+			LogInfo(COMPONENT_NFS_V4,
+					"COMPOUND: There are %d operations",
+					data->argarray_len);
+			for (j = 0; j < data->argarray_len; j++) {
+
+				nfs_opnum4 opcode = data->argarray[j].argop;
+
+				/* Handle opcode overflow */
+				if (opcode > LastOpcode[data->minorversion])
+					opcode = 0;
+
+				LogInfo(COMPONENT_NFS_V4,
+						"Request %d: opcode %d is %s",
+						j, data->argarray[j].argop,
+						optabv4[opcode].name);
+			}
+		}
+
+		LogInfo(COMPONENT_NFS_V4, "End status = %s lastindex = %d",
+				nfsstat4_to_str(status), data->oppos);
+	}
 
 }
 
