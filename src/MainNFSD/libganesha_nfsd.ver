@@ -50,6 +50,7 @@
   fgetxattr;
   find_unused_blocks;
   flistxattr;
+  flush_all_logs;
   fhlink;
   fhreadlink;
   free_export_ops;
@@ -231,6 +232,7 @@
   set_op_context_export_fsal;
   set_saved_entry;
   SetNameFunction;
+  spawn_log_flusher;
   sprint_sockip;
   start_fsals;
   state_err_str;

@@ -186,6 +186,16 @@ typedef enum protos {
 #define CORE_OPTION_NONE 0x00000000	/*< No operations are supported */
 
 /**
+ * Default value for core_param.num_log_files
+ */
+#define NUM_LOG_FILES 32
+
+/**
+ * Default value for core_param.max_logfile_size
+ */
+#define MAX_LOGFILE_SIZE (1024 * 1024 * 1024)
+
+/**
  * @brief Support NFSv3
  */
 
@@ -491,6 +501,10 @@ typedef struct nfs_core_param {
 	/** if  Manage_Gids=True and group resolution fails,
 	 *  then use gid data from rpc request */
 	bool enable_rpc_cred_fallback;
+	/* Number of log files */
+	uint32_t num_log_files;
+	/* Max log file size */
+	uint32_t max_logfile_size;
 } nfs_core_parameter_t;
 
 /** @} */

@@ -384,6 +384,11 @@ void nfs_print_param_config(void)
 
 	printf("\tEnable UDP = %u ;\n", nfs_param.core_param.enable_UDP);
 
+	printf("\tNumber of log files = %d\n",
+		nfs_param.core_param.num_log_files);
+	printf("\tMaximum size of log files = %u\n",
+		nfs_param.core_param.max_logfile_size);
+
 	printf("}\n\n");
 }
 

@@ -98,6 +98,30 @@
 
 pthread_rwlock_t log_rwlock;
 
+#define LOG_FILES 32
+#define LOG_BUFFER_SIZE (256*1024)
+
+typedef struct log_file_ {
+	pthread_mutex_t lock;
+	uint64_t buf_offset;
+	int log_fd;
+	char path[MAXPATHLEN+1];
+	char *buffer;
+} log_file_t;
+
+pthread_mutex_t lbuffer_lock = PTHREAD_MUTEX_INITIALIZER;
+log_file_t *lbuffer[LOG_FILES];
+/* number of actual log files in use */
+int log_files = 0;
+
+int global_id = 0;
+__thread int id = -1;
+__thread log_file_t *lbuffer_thr = NULL;
+
+/* Variables for log rotate */
+
+const int MAX_OLD_LOGFILES = 5;
+
 /* Variables to control log fields */
 
 /**
@@ -222,10 +246,21 @@ static int log_to_file(log_header_t headers, void *private,
 		       struct display_buffer *buffer, char *compstr,
 		       char *message);
 
+static int log_to_file2(log_header_t headers, void *private,
+		       log_levels_t level,
+		       struct display_buffer *buffer, char *compstr,
+		       char *message);
+
 static int log_to_stream(log_header_t headers, void *private,
 			 log_levels_t level,
 			 struct display_buffer *buffer, char *compstr,
 			 char *message);
+
+static inline bool rotate_log(int fd, log_file_t *file);
+static void rotate_old_log_files(log_file_t *file);
+static void flush_log_file(int i, bool periodic, bool close_fd);
+
+static void *log_flusher(void *arg);
 
 static struct glist_head facility_list;
 static struct glist_head active_facility_list;
@@ -338,6 +373,8 @@ void Cleanup(void)
 		c->clean();
 		c = c->next;
 	}
+
+  flush_all_logs(true /*close_fd*/);
 
 	PTHREAD_RWLOCK_destroy(&log_rwlock);
 #ifdef _DONT_HAVE_LOCALTIME_R
@@ -1083,7 +1120,7 @@ void init_logging(const char *log_path, const int debug_level)
 					 "Enable error (%s) for %s logging!",
 					 strerror(-rc), log_path);
 		} else {
-			rc = create_log_facility("FILE", log_to_file,
+			rc = create_log_facility("FILE", log_to_file2,
 						 NIV_FULL_DEBUG, LH_ALL,
 						 (void *)log_path);
 			if (rc != 0)
@@ -1111,6 +1148,27 @@ void init_logging(const char *log_path, const int debug_level)
 		SetLevelDebug(debug_level);
 		original_log_level = debug_level;
 	}
+}
+
+int spawn_log_flusher(void)
+{
+	int err = 0;
+	bool create = false;
+	pthread_t thr;
+
+	PTHREAD_RWLOCK_rdlock(&log_rwlock);
+	if (default_facility && !strcmp(default_facility->lf_name, "FILE"))
+		create = true;
+	PTHREAD_RWLOCK_unlock(&log_rwlock);
+
+	if (create) {
+		err = pthread_create(&thr, NULL, log_flusher, NULL);
+		if (err)
+			LogEvent(COMPONENT_LOG,
+					 "Thread spawn error (%s) in logging!",
+					 strerror(err));
+	}
+	return err;
 }
 
 /*
@@ -1295,6 +1353,219 @@ int display_timespec(struct display_buffer *dspbuf, struct timespec *ts)
 	}
 
 	return b_left;
+}
+
+static int log_to_file2(log_header_t headers, void *private,
+				log_levels_t level,
+				struct display_buffer *buffer, char *compstr,
+				char *message)
+{
+	int err = 0;
+	int fd;
+	int len;
+	int file_picked = 0;
+	log_file_t *newbuf = NULL;
+	char *path = private;
+	uint64_t offset = 0;
+
+	len = display_buffer_len(buffer);
+
+	/* Add newline to end of buffer */
+	buffer->b_start[len] = '\n';
+	buffer->b_start[len + 1] = '\0';
+	len++;
+
+	if (id == -1) {
+		pthread_mutex_lock(&lbuffer_lock);
+		id = global_id++;
+		if (id < (nfs_param.core_param.num_log_files)) {
+			newbuf = (log_file_t *) gsh_malloc(sizeof(log_file_t));
+			if (!newbuf) {
+				err = ENOMEM;
+				pthread_mutex_unlock(&lbuffer_lock);
+				goto out;
+			}
+
+			pthread_mutex_init(&newbuf->lock, NULL);
+
+			newbuf->buffer = gsh_malloc(sizeof(char)*
+				LOG_BUFFER_SIZE);
+			if (!newbuf->buffer) {
+				err = ENOMEM;
+				pthread_mutex_unlock(&lbuffer_lock);
+				goto out;
+			}
+
+			snprintf(newbuf->path, MAXPATHLEN+1, "%s-%d", path, id);
+			fd = open(newbuf->path, O_WRONLY |
+						O_APPEND | O_CREAT,
+						log_mask);
+			if (fd == -1) {
+				err = errno;
+				pthread_mutex_unlock(&lbuffer_lock);
+				goto out;
+			}
+			newbuf->log_fd = fd;
+			newbuf->buf_offset = 0;
+
+			lbuffer[log_files] = newbuf;
+			log_files++;
+		}
+		file_picked = (id % (nfs_param.core_param.num_log_files));
+		lbuffer_thr = lbuffer[file_picked];
+		pthread_mutex_unlock(&lbuffer_lock);
+	} else {
+		file_picked = (id % (nfs_param.core_param.num_log_files));
+	}
+
+	assert(id != -1 && lbuffer_thr != NULL);
+
+	pthread_mutex_lock(&lbuffer_thr->lock);
+	if ((lbuffer_thr->buf_offset + len - 1) > LOG_BUFFER_SIZE) {
+		/* Hit the end of the log. Flush it to the disk. */
+		flush_log_file(file_picked, false /*periodic*/,
+			false /*close_fd*/);
+	}
+	offset = lbuffer_thr->buf_offset;
+	lbuffer_thr->buf_offset += len;
+	memcpy(&lbuffer_thr->buffer[offset], buffer->b_start, len);
+	pthread_mutex_unlock(&lbuffer_thr->lock);
+
+out:
+	if (err) {
+		fprintf(stderr,
+				"Error: couldn't complete write to the log file %s status=%d (%s) message was:\n%s",
+				path, err, strerror(err), buffer->b_start);
+	}
+
+	return len;
+}
+
+static void flush_log_file(int i, bool periodic, bool close_fd)
+{
+	log_file_t *file = lbuffer[i];
+	int fd = file->log_fd;
+	int rc;
+	bool is_newfd = false; /* If log rotated, dont flush and close fd
+					as new log file/fd is created */
+
+	if (fd == -1) {
+		fd = open(file->path, O_WRONLY | O_APPEND | O_CREAT,
+					log_mask);
+		if (fd == -1) {
+			fprintf(stderr,
+					"Error: Thread %u failed to open file %s, errno %d\n",
+					id, file->path, errno);
+			return;
+		}
+		file->log_fd = fd;
+	}
+
+	rc = write(fd, file->buffer, file->buf_offset);
+	if (rc < file->buf_offset) {
+		if (rc >= 0)
+			fprintf(stderr,
+					"Error: Thread %u partially flushed the log buffer to %s, errno %d, rc %d len %lu\n",
+					id, file->path, errno,
+					rc, file->buf_offset);
+		else
+			fprintf(stderr,
+					"Error: Thread %u couldn't flush log buffer to %s, errno %d\n",
+					id, file->path, errno);
+
+		(void)close(fd);
+		file->log_fd = -1;
+
+		return;
+	}
+
+	is_newfd = rotate_log(fd, file); /* Rotate log files */
+	if (periodic && !is_newfd) {
+		fdatasync(fd);
+		if (close_fd) {
+			(void)close(fd);
+			file->log_fd = -1;
+		}
+	}
+
+	file->buf_offset = 0;
+}
+
+static inline bool rotate_log(int fd, log_file_t *file) {
+	struct stat st;
+	/* Each log rotated will be 1/5 of max log file size given as nfs conf parameter
+	 * or 200MB by default */
+	int max_logfile_size = (nfs_param.core_param.max_logfile_size / 5);
+
+	if (fstat(fd, &st) != 0) {
+		fprintf(stderr, "Error: Thread %u failed to stat file %s, errno %d\n",
+				id, file->path, errno);
+	}
+
+	if (st.st_size >= max_logfile_size) {
+		fdatasync(fd);
+		(void)close(fd);
+		file->log_fd = -1;
+		rotate_old_log_files(file);
+		return true;
+	}
+	return false;
+}
+
+static void rotate_old_log_files(log_file_t *file) {
+	char curr_filename[MAXPATHLEN + 1 + sizeof(int)];
+	char new_filename[MAXPATHLEN + 1 + sizeof(int)];
+
+	/* Rename old files */
+	int i = 0;
+	for (i = MAX_OLD_LOGFILES - 1; i >= 1; --i) {
+		snprintf(curr_filename, sizeof(curr_filename), "%s.%d", file->path,
+				i);
+		snprintf(new_filename, sizeof(new_filename), "%s.%d", file->path,
+				i+1);
+		rename(curr_filename, new_filename);
+	}
+
+	/* Rename orignal file */
+	rename(file->path, curr_filename);
+
+	/* Open New File log file and assign fd */
+	int fd = 0;
+	fd = open(file->path, O_WRONLY | O_APPEND | O_CREAT, log_mask);
+	if (fd == -1) {
+		fprintf(stderr,
+				"Error: Thread %u failed to open file %s, errno %d\n",
+				id, file->path, errno);
+		return;
+	}
+	file->log_fd = fd;
+}
+
+void flush_all_logs(bool close_fd)
+{
+	int i;
+	log_file_t *file;
+
+	for (i = 0; i < log_files; i++) {
+		file = lbuffer[i];
+		pthread_mutex_lock(&file->lock);
+		flush_log_file(i, true /*periodic*/, close_fd);
+		pthread_mutex_unlock(&file->lock);
+	}
+}
+
+static void *log_flusher(void *arg)
+{
+	int count = 0;
+
+	while (1) {
+		++count;
+		/* close the fd every 5th iteration of while */
+		flush_all_logs(!(count % 5) /*close_fd*/);
+		sleep(60);
+	}
+
+	return NULL;
 }
 
 static int display_log_header(struct display_buffer *dsp_log)

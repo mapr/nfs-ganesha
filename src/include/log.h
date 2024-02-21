@@ -138,6 +138,8 @@ void SetClientIP(char *ip_str);
 
 void init_logging(const char *log_path, const int debug_level);
 
+int spawn_log_flusher(void);
+
 int ReturnLevelAscii(const char *LevelInAscii);
 char *ReturnLevelInt(int level);
 
@@ -209,6 +211,7 @@ int disable_log_facility(const char *name);
 int set_log_destination(const char *name, char *dest);
 int set_log_level(const char *name, log_levels_t max_level);
 void set_const_log_str(void);
+void flush_all_logs(bool close_fd);
 
 struct log_component_info {
 	const char *comp_name;	/* component name */
