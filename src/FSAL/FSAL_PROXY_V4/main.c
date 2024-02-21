@@ -136,7 +136,7 @@ static fsal_status_t proxyv4_init_config(struct fsal_module *fsal_hdl,
 MODULE_INIT void proxyv4_init(void)
 {
 	if (register_fsal(&PROXY_V4.module, "PROXY_V4", FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS) != 0)
+			  FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL) != 0)
 		return;
 	PROXY_V4.module.m_ops.init_config = proxyv4_init_config;
 	PROXY_V4.module.m_ops.create_export = proxyv4_create_export;
