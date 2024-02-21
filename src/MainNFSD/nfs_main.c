@@ -133,6 +133,9 @@ static inline char *main_strdup(const char *var, const char *str)
 	return s;
 }
 
+#define MAX_MAPR_VERSION_LEN 255
+char mapr_version[MAX_MAPR_VERSION_LEN+1] = "nfs4_mapr-version"_MAPR_VERSION;
+
 /**
  * main: simply the main function.
  *
@@ -186,6 +189,8 @@ int main(int argc, char *argv[])
 		nfs_host_name = main_strdup("host_name", localmachine);
 	}
 
+	fprintf(stderr, "%s\n", mapr_version);
+
 	/* now parsing options with getopt */
 	while ((c = getopt(argc, argv, options)) != EOF) {
 		switch (c) {
@@ -199,6 +204,7 @@ int main(int argc, char *argv[])
 			printf("Release comment = %s\n", VERSION_COMMENT);
 			printf("Git HEAD = %s\n", _GIT_HEAD_COMMIT);
 			printf("Git Describe = %s\n", _GIT_DESCRIBE);
+			printf("MapR Version = %s\n", _MAPR_VERSION);
 #endif
 			mapr_exit(0);
 			break;
