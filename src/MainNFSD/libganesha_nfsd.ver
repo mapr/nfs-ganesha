@@ -99,6 +99,7 @@
   fsal_start_global_io;
   fsal_start_io;
   fsal_supported_attrs;
+  fsal_supports;
   fsal_test_access;
   fsal_write;
   fsal2posix_openflags;
