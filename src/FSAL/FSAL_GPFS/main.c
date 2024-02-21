@@ -219,7 +219,7 @@ MODULE_INIT void gpfs_init(void)
 	struct fsal_module *myself = &GPFS.module;
 
 	if (register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_GPFS) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_GPFS, NULL) != 0) {
 		fprintf(stderr, "GPFS module failed to register");
 		return;
 	}

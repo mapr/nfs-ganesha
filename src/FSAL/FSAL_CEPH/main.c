@@ -781,7 +781,7 @@ MODULE_INIT void init(void)
 		 "Ceph module registering.");
 
 	if (register_fsal(myself, module_name, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_CEPH) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_CEPH, NULL) != 0) {
 		/* The register_fsal function prints its own log
 		   message if it fails */
 		LogCrit(COMPONENT_FSAL,

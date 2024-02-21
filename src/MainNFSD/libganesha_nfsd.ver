@@ -139,6 +139,7 @@
   lookup_fsid;
   lookup_fsid_locked;
   LogMallocFailure;
+  mapr_exit;
   mdcache_lru_release_entries;
   mdcache_param;
   merge_share;
