@@ -132,6 +132,8 @@ char *nfs_config_path = GANESHA_CONFIG_PATH;
 
 char *nfs_pidfile_path = GANESHA_PIDFILE_PATH;
 
+extern void (*fsal_dump_logs_fn)(void);
+
 void mapr_exit(int exit_status)
 {
 	if (fsal_dump_logs_fn) {

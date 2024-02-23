@@ -76,6 +76,11 @@ static int so_error;
 static struct fsal_module *new_fsal;
 
 /**
+ * Global fsal dump logs function
+ */
+void (*fsal_dump_logs_fn)(void);
+
+/**
  * @}
  */
 

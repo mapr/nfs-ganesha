@@ -162,11 +162,6 @@ static inline void release_root_op_context(void)
  */
 
 /**
- * Global fsal dump logs function
- */
-void (*fsal_dump_logs_fn)(void);
-
-/**
  * @brief Register a FSAL
  *
  * This function registers an FSAL with ganesha and initializes the
