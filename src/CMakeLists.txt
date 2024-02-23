@@ -521,6 +521,12 @@ if(USE_NFS_RDMA OR USE_9P_RDMA)
   set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${RDMA_LIBRARY})
 endif(USE_NFS_RDMA OR USE_9P_RDMA)
 
+find_package(Curl REQUIRED)
+set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${CURL_LIBRARY})
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "curl libraries not found")
+endif(NOT CURL_FOUND)
+
 if(USE_9P_RDMA AND NOT USE_9P)
   message(WARNING "The support of 9P/RDMA needs 9P protocol support. Enabling 9P")
   set(USE_9P ON)
@@ -1677,6 +1683,9 @@ endif(COVERAGE)
 
 add_executable(ganesha.nfsd ./MainNFSD/nfs_main.c)
 add_sanitizers(ganesha.nfsd)
+# added the following property so that cmake does not trim curl as it
+# is not direct dependant for ganesha bin but used by fsalmapr
+set_property(TARGET ganesha.nfsd PROPERTY LINK_LIBRARIES "-Wl,--no-as-needed -lcurl")
 
 target_link_libraries(ganesha.nfsd
   ganesha_nfsd
