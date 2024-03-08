@@ -340,7 +340,7 @@ void mdcache_fsal_init(void)
 	struct fsal_module *myself = &MDCACHE.module;
 
 	retval = register_fsal(myself, mdcachename, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "MDCACHE module failed to register");
 		return;

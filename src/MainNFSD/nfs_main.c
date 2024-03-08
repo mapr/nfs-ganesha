@@ -93,6 +93,8 @@ config_file_t nfs_config_struct;
 char *nfs_host_name = "localhost";
 bool config_errors_fatal;
 
+void mapr_exit(int exit_status);
+
 /* command line syntax */
 
 static const char options[] = "v@L:N:f:p:FRTE:ChI:x";
@@ -131,6 +133,9 @@ static inline char *main_strdup(const char *var, const char *str)
 	return s;
 }
 
+#define MAX_MAPR_VERSION_LEN 255
+char mapr_version[MAX_MAPR_VERSION_LEN+1] = "nfs4_mapr-version"_MAPR_VERSION;
+
 /**
  * main: simply the main function.
  *
@@ -162,7 +167,8 @@ int main(int argc, char *argv[])
 #endif
 	sigset_t signals_to_block;
 	struct config_error_type err_type;
-
+        nfs_param.core_param.num_log_files = 1;
+        nfs_param.core_param.max_logfile_size = MAX_LOGFILE_SIZE;
 	/* Set the server's boot time and epoch */
 	now(&nfs_ServerBootTime);
 	nfs_ServerEpoch = (time_t) nfs_ServerBootTime.tv_sec;
@@ -178,10 +184,12 @@ int main(int argc, char *argv[])
 	/* get host name */
 	if (gethostname(localmachine, sizeof(localmachine)) != 0) {
 		fprintf(stderr, "Could not get local host name, exiting...\n");
-		exit(1);
+		mapr_exit(1);
 	} else {
 		nfs_host_name = main_strdup("host_name", localmachine);
 	}
+
+	fprintf(stderr, "%s\n", mapr_version);
 
 	/* now parsing options with getopt */
 	while ((c = getopt(argc, argv, options)) != EOF) {
@@ -196,8 +204,9 @@ int main(int argc, char *argv[])
 			printf("Release comment = %s\n", VERSION_COMMENT);
 			printf("Git HEAD = %s\n", _GIT_HEAD_COMMIT);
 			printf("Git Describe = %s\n", _GIT_DESCRIBE);
+			printf("MapR Version = %s\n", _MAPR_VERSION);
 #endif
-			exit(0);
+			mapr_exit(0);
 			break;
 
 		case 'L':
@@ -211,7 +220,7 @@ int main(int argc, char *argv[])
 			if (debug_level == -1) {
 				fprintf(stderr,
 					"Invalid value for option 'N': NIV_NULL, NIV_MAJ, NIV_CRIT, NIV_EVENT, NIV_DEBUG, NIV_MID_DEBUG or NIV_FULL_DEBUG expected.\n");
-				exit(1);
+				mapr_exit(1);
 			}
 			break;
 
@@ -242,7 +251,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "\tKeytabPath = /etc/krb5.keytab ;\n");
 			fprintf(stderr, "\tActive_krb5 = true ;\n");
 			fprintf(stderr, "}\n\n\n");
-			exit(1);
+			mapr_exit(1);
 			break;
 
 		case 'T':
@@ -268,11 +277,11 @@ int main(int argc, char *argv[])
 
 		case 'h':
 			fprintf(stderr, usage, exec_name);
-			exit(0);
+			mapr_exit(0);
 
 		default: /* '?' */
 			fprintf(stderr, "Try '%s -h' for usage\n", exec_name);
-			exit(1);
+			mapr_exit(1);
 		}
 	}
 
@@ -377,7 +386,7 @@ int main(int argc, char *argv[])
 			LogFullDebug(COMPONENT_MAIN,
 				     "Starting a child of pid %d",
 				     son_pid);
-			exit(0);
+			mapr_exit(0);
 			break;
 		}
 #endif
@@ -389,6 +398,7 @@ int main(int argc, char *argv[])
 	signal(SIGXFSZ, SIG_IGN);
 #endif
 
+  spawn_log_flusher();
 	/* Echo our PID into pidfile: this serves as a lock to prevent */
 	/* multiple instances from starting, so any failure creating   */
 	/* this file is a fatal error.                                 */
@@ -590,6 +600,7 @@ fatal_die:
 
 	LogFatal(COMPONENT_INIT,
 		 "Fatal errors.  Server exiting...");
+	flush_all_logs(true /*close_fd*/);
 	/* NOT REACHED */
 	return 2;
 }

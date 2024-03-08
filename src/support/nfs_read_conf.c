@@ -333,6 +333,10 @@ static struct config_item core_params[] = {
 #endif
 	CONF_ITEM_BOOL("enable_rpc_cred_fallback", false,
 		       nfs_core_param, enable_rpc_cred_fallback),
+	CONF_ITEM_UI32("Num_Log_Files", 1, NUM_LOG_FILES, NUM_LOG_FILES,
+			nfs_core_param, num_log_files),
+	CONF_ITEM_UI32("Max_Logfile_Size", 256*1024, 1*1024*1024*1024 /*1GB*/,
+			MAX_LOGFILE_SIZE, nfs_core_param, max_logfile_size),
 	CONFIG_EOL
 };
 

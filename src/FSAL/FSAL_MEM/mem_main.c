@@ -259,7 +259,7 @@ MODULE_INIT void init(void)
 	struct fsal_module *myself = &MEM.fsal;
 
 	retval = register_fsal(myself, memname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL);
 	if (retval != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"MEM module failed to register.");

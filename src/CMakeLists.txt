@@ -205,6 +205,10 @@ ELSE( EXISTS ${GANESHA_TOP_CMAKE_DIR}/../.git/HEAD  )
 
 ENDIF( EXISTS ${GANESHA_TOP_CMAKE_DIR}/../.git/HEAD  )
 
+message ( INFO "Generate mapr version info...")
+EXEC_PROGRAM(${CMAKE_SOURCE_DIR}/cmake/maprversion_from_repo.sh ARGS ${CMAKE_SOURCE_DIR}
+		OUTPUT_VARIABLE  _MAPR_VERSION)
+
 STRING(SUBSTRING ${_GIT_HEAD_COMMIT} 0  7 _GIT_HEAD_COMMIT_ABBREV )
 
 if (BSDBASED)
@@ -516,6 +520,12 @@ if(USE_NFS_RDMA OR USE_9P_RDMA)
   include_directories(${RDMA_INCLUDE_DIR})
   set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${RDMA_LIBRARY})
 endif(USE_NFS_RDMA OR USE_9P_RDMA)
+
+find_package(Curl REQUIRED)
+set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${CURL_LIBRARY})
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "curl libraries not found")
+endif(NOT CURL_FOUND)
 
 if(USE_9P_RDMA AND NOT USE_9P)
   message(WARNING "The support of 9P/RDMA needs 9P protocol support. Enabling 9P")
@@ -1363,6 +1373,7 @@ message(STATUS "CMAKE_PREFIX_PATH = ${CMAKE_PREFIX_PATH}")
 message(STATUS "_GIT_HEAD_COMMIT = ${_GIT_HEAD_COMMIT}")
 message(STATUS "_GIT_HEAD_COMMIT_ABBREV = ${_GIT_HEAD_COMMIT_ABBREV}")
 message(STATUS "_GIT_DESCRIBE = ${_GIT_DESCRIBE}")
+message(STATUS "_MAPR_VERSION = ${_MAPR_VERSION}")
 message(STATUS "ALLOCATOR = ${ALLOCATOR}")
 message(STATUS "GOLD_LINKER = ${GOLD_LINKER}")
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
@@ -1672,6 +1683,9 @@ endif(COVERAGE)
 
 add_executable(ganesha.nfsd ./MainNFSD/nfs_main.c)
 add_sanitizers(ganesha.nfsd)
+# added the following property so that cmake does not trim curl as it
+# is not direct dependant for ganesha bin but used by fsalmapr
+set_property(TARGET ganesha.nfsd PROPERTY LINK_LIBRARIES "-Wl,--no-as-needed -lcurl")
 
 target_link_libraries(ganesha.nfsd
   ganesha_nfsd

@@ -483,7 +483,7 @@ struct fsal_module *lookup_fsal(const char *name)
 
 int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 		  uint32_t major_version, uint32_t minor_version,
-		  uint8_t fsal_id)
+		  uint8_t fsal_id, void (*dump_logs_fn)(void))
 {
 	PTHREAD_MUTEX_lock(&fsal_lock);
 	if ((major_version != FSAL_MAJOR_VERSION)
@@ -525,6 +525,7 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 	if (fsal_id != FSAL_ID_NO_PNFS && fsal_id < FSAL_ID_COUNT)
 		pnfs_fsal[fsal_id] = fsal_hdl;
 	PTHREAD_MUTEX_unlock(&fsal_lock);
+	fsal_dump_logs_fn = dump_logs_fn;
 	return 0;
 
  errout:

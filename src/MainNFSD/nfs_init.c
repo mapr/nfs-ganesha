@@ -141,6 +141,17 @@ char *nfs_pidfile_path = GANESHA_PIDFILE_PATH;
 char cid_server_owner[MAXNAMLEN+1]; /* max hostname length */
 char *cid_server_scope;
 
+void mapr_exit(int exit_status)
+{
+	if (fsal_dump_logs_fn) {
+		fsal_dump_logs_fn();
+	}
+	flush_all_logs(true /*close_fd*/);
+	fflush(stdout);
+	fflush(stderr);
+	_exit(exit_status);
+}
+
 /**
  * @brief Reread the configuration file to accomplish update of options.
  *
@@ -240,6 +251,10 @@ static void *sigmgr_thread(void *UnusedArg)
 		}
 	}
 	LogDebug(COMPONENT_THREAD, "sigmgr thread exiting");
+
+	flush_all_logs(true /*close_fd*/);
+	fflush(stdout);
+	fflush(stderr);
 
 	admin_halt();
 
@@ -383,6 +398,11 @@ void nfs_print_param_config(void)
 	       nfs_param.core_param.drop_delay_errors ? "true" : "false");
 
 	printf("\tEnable UDP = %u ;\n", nfs_param.core_param.enable_UDP);
+
+	printf("\tNumber of log files = %d\n",
+		nfs_param.core_param.num_log_files);
+	printf("\tMaximum size of log files = %u\n",
+		nfs_param.core_param.max_logfile_size);
 
 	printf("}\n\n");
 }
@@ -876,6 +896,7 @@ static void nfs_Init(const nfs_start_info_t *p_start_info)
 	if (_9p_init()) {
 		LogFatal(COMPONENT_INIT,
 			 "Error while initializing 9P Resources");
+		mapr_exit(1);
 	}
 	LogInfo(COMPONENT_INIT, "9P resources successfully initialized");
 #endif				/* _USE_9P */
@@ -1001,7 +1022,7 @@ void nfs_start(nfs_start_info_t *p_start_info)
 
 	if (p_start_info->dump_default_config == true) {
 		nfs_print_param_config();
-		exit(0);
+		mapr_exit(0);
 	}
 
 	/* Make sure Ganesha runs with a 0000 umask. */

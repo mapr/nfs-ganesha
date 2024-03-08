@@ -344,7 +344,7 @@ MODULE_INIT void init(void)
 
 	memset(lzfs_module, 0, sizeof(*lzfs_module));
 	if (register_fsal(lzfs_module, gModuleName, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_LIZARDFS)) {
+			  FSAL_MINOR_VERSION, FSAL_ID_LIZARDFS, NULL)) {
 		LogCrit(COMPONENT_FSAL, "LizardFS module failed to register.");
 	}
 
