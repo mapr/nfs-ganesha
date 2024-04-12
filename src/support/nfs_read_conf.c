@@ -307,7 +307,7 @@ static struct config_item core_params[] = {
 		       nfs_core_param, resolve_fs_retries),
 	CONF_ITEM_UI32("resolve_fs_delay", 1, 1000, 100,
 		       nfs_core_param, resolve_fs_delay),
-	CONF_ITEM_BOOL("mount_path_pseudo", false,
+	CONF_ITEM_BOOL("mount_path_pseudo", true,
 		       nfs_core_param, mount_path_pseudo),
 	CONF_ITEM_ENUM_BITS("Enable_UDP", UDP_LISTENER_ALL, UDP_LISTENER_MASK,
 		       udp_listener_type, nfs_core_param, enable_UDP),
