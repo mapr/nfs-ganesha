@@ -1,6 +1,8 @@
 [submodule "src/libntirpc"]
-	path = src/libntirpc
-	url = https://github.com/nfs-ganesha/ntirpc.git
+    path = src/libntirpc
+    url = git@github.com:mapr/private-ntirpc.git
+    branch = v6-mapr
 [submodule "src/monitoring/prometheus-cpp-lite"]
-	path = src/monitoring/prometheus-cpp-lite
-	url = https://github.com/biaks/prometheus-cpp-lite.git
+    path = src/monitoring/prometheus-cpp-lite
+    url = git@github.com:mapr/private-prometheus-cpp-lite.git
+    branch = v1-mapr
