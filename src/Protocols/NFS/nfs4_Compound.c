@@ -163,12 +163,13 @@ static const struct nfs4_op_desc optabv4[] = {
 		.free_res = nfs4_op_create_Free,
 		.resp_size = sizeof(CREATE4res),
 		.exp_perm_flags = EXPORT_OPTION_MD_WRITE_ACCESS},
-        [NFS4_OP_MKDIR] = {
-                .name = "OP_MKDIR",
-                .funct = nfs4_op_create,
-                .resume = nfs4_default_resume,
-                .free_res = nfs4_op_create_Free,
-                .resp_size = sizeof(CREATE4res),
+	[NFS4_OP_MKDIR] = {
+		.name = "OP_MKDIR",
+		.funct = nfs4_op_create,
+		.resume = nfs4_default_resume,
+		.free_res = nfs4_op_create_Free,
+		.resp_size = sizeof(CREATE4res),
+		.exp_perm_flags = EXPORT_OPTION_MD_WRITE_ACCESS},
 	[NFS4_OP_DELEGPURGE] = {
 		.name = "OP_DELEGPURGE",
 		.funct = nfs4_op_delegpurge,
@@ -928,18 +929,35 @@ enum nfs_req_result process_one_op(compound_data_t *data, nfsstat4 *status)
 		/* Complete the operation, otherwise return without doing
 		 * anything else.
 		 */
+		// Inorder toif current OP is MKDIR or RMDIR, we perform below logic and increase respective counters
                 if (data->opcode == NFS4_OP_CREATE) {
                         nfs_argop4 * varargs = thisarg;
                         CREATE4args * const arg_CREATE4 = &varargs->nfs_argop4_u.opcreate;
                         if (arg_CREATE4->objtype.type == NF4DIR) {
                                 data->opcode = NFS4_OP_MKDIR;
                         }
-                /*} else if (data->opcode == NFS4_OP_REMOVE) {
-                        nfs_argop4 * varargs = thisarg;
-                        REMOVE4args * const arg_REMOVE4 = &varargs->nfs_argop4_u.opremove;
-                        if (arg_REMOVE4->objtype.type == NF4DIR) {
+                } else if (data->opcode == NFS4_OP_REMOVE) {
+                        fsal_status_t fsal_status;
+                        struct fsal_obj_handle *obj_handle;
+                        struct fsal_attrlist attrs;
+                        fsal_status = op_ctx->fsal_export->exp_ops.lookup_path(op_ctx->fsal_export, CTX_FULLPATH(op_ctx),
+                                                        &obj_handle, &attrs);
+
+                        if (FSAL_IS_ERROR(fsal_status)) {
+                                LogDebug(COMPONENT_NFS_V4, "FSAL lookup failed for REMOVE target");
+                        } else {
+                                memset(&attrs, 0, sizeof(struct fsal_attrlist));
+
+                                fsal_status = obj_handle->obj_ops->getattrs(obj_handle, &attrs);
+
+                                if (FSAL_IS_ERROR(fsal_status)) {
+                                LogDebug(COMPONENT_NFS_V4, "FSAL getattrs failed on REMOVE target");
+                                } else if (attrs.type == DIRECTORY) {
                                 data->opcode = NFS4_OP_RMDIR;
-                        }*/
+                                }
+
+                                obj_handle->obj_ops->release(obj_handle);
+                        }
                 }
 		result = complete_op(data, status, result);
 	}
@@ -1606,7 +1624,7 @@ void nfs4_Compound_CopyResOne(nfs_resop4 *res_dst, nfs_resop4 *res_src)
 
 	case NFS4_OP_COMMIT:
 	case NFS4_OP_CREATE:
-	case NFS4_OP_CREATE:
+	case NFS4_OP_MKDIR:
 	case NFS4_OP_DELEGPURGE:
 	case NFS4_OP_DELEGRETURN:
 	case NFS4_OP_GETATTR:
