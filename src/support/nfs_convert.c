@@ -111,6 +111,8 @@ static const struct op_name op_names_v4[] = {
 	[NFS4_OP_READDIR] = {.name = "OP_READDIR",},
 	[NFS4_OP_READLINK] = {.name = "OP_READLINK",},
 	[NFS4_OP_REMOVE] = {.name = "OP_REMOVE",},
+	[NFS4_OP_MKDIR] = {.name = "OP_MKDIR",},
+	[NFS4_OP_RMDIR] = {.name = "OP_RMDIR",},
 	[NFS4_OP_RENAME] = {.name = "OP_RENAME",},
 	[NFS4_OP_RENEW] = {.name = "OP_RENEW",},
 	[NFS4_OP_RESTOREFH] = {.name = "OP_RESTOREFH",},

@@ -163,6 +163,12 @@ static const struct nfs4_op_desc optabv4[] = {
 		.free_res = nfs4_op_create_Free,
 		.resp_size = sizeof(CREATE4res),
 		.exp_perm_flags = EXPORT_OPTION_MD_WRITE_ACCESS},
+        [NFS4_OP_MKDIR] = {
+                .name = "OP_MKDIR",
+                .funct = nfs4_op_create,
+                .resume = nfs4_default_resume,
+                .free_res = nfs4_op_create_Free,
+                .resp_size = sizeof(CREATE4res),
 	[NFS4_OP_DELEGPURGE] = {
 		.name = "OP_DELEGPURGE",
 		.funct = nfs4_op_delegpurge,
@@ -317,6 +323,13 @@ static const struct nfs4_op_desc optabv4[] = {
 		.free_res = nfs4_op_remove_Free,
 		.resp_size = sizeof(REMOVE4res),
 		.exp_perm_flags = EXPORT_OPTION_MD_WRITE_ACCESS},
+        [NFS4_OP_RMDIR] = {
+                .name = "OP_RMDIR",
+                .funct = nfs4_op_remove,
+                .resume = nfs4_default_resume,
+                .free_res = nfs4_op_remove_Free,
+                .resp_size = sizeof(REMOVE4res),
+                .exp_perm_flags = EXPORT_OPTION_MD_WRITE_ACCESS},
 	[NFS4_OP_RENAME] = {
 		.name = "OP_RENAME",
 		.funct = nfs4_op_rename,
@@ -915,6 +928,19 @@ enum nfs_req_result process_one_op(compound_data_t *data, nfsstat4 *status)
 		/* Complete the operation, otherwise return without doing
 		 * anything else.
 		 */
+                if (data->opcode == NFS4_OP_CREATE) {
+                        nfs_argop4 * varargs = thisarg;
+                        CREATE4args * const arg_CREATE4 = &varargs->nfs_argop4_u.opcreate;
+                        if (arg_CREATE4->objtype.type == NF4DIR) {
+                                data->opcode = NFS4_OP_MKDIR;
+                        }
+                /*} else if (data->opcode == NFS4_OP_REMOVE) {
+                        nfs_argop4 * varargs = thisarg;
+                        REMOVE4args * const arg_REMOVE4 = &varargs->nfs_argop4_u.opremove;
+                        if (arg_REMOVE4->objtype.type == NF4DIR) {
+                                data->opcode = NFS4_OP_RMDIR;
+                        }*/
+                }
 		result = complete_op(data, status, result);
 	}
 
@@ -1580,6 +1606,7 @@ void nfs4_Compound_CopyResOne(nfs_resop4 *res_dst, nfs_resop4 *res_src)
 
 	case NFS4_OP_COMMIT:
 	case NFS4_OP_CREATE:
+	case NFS4_OP_CREATE:
 	case NFS4_OP_DELEGPURGE:
 	case NFS4_OP_DELEGRETURN:
 	case NFS4_OP_GETATTR:
@@ -1632,6 +1659,7 @@ void nfs4_Compound_CopyResOne(nfs_resop4 *res_dst, nfs_resop4 *res_src)
 	case NFS4_OP_READDIR:
 	case NFS4_OP_READLINK:
 	case NFS4_OP_REMOVE:
+	case NFS4_OP_RMDIR:
 	case NFS4_OP_RENAME:
 	case NFS4_OP_RENEW:
 	case NFS4_OP_RESTOREFH:
