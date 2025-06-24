@@ -253,6 +253,18 @@ class RetrieveClientStats():
         self.clientmgrobj = self.bus.get_object(self.dbus_service_name,
                                                 self.client_interface)
 
+    def io_stats(self, stats_op, client_ip):
+        stats_dict = {}
+        if client_ip == "":
+            clients_list = self.clientmgrobj.get_dbus_method("ShowClients",
+                                                     self.dbus_clientmgr_name)
+            for client in clients_list()[1]:
+                clientaddr = client[0]
+                stats_dict[clientaddr] = stats_op(clientaddr)
+            return stats_dict
+        stats_dict[client_ip] = stats_op(client_ip)
+        return stats_dict
+
     # delegation stats related to a single client ip
     def deleg_stats(self, ip_):
         stats_op = self.clientmgrobj.get_dbus_method("GetDelegations",
@@ -271,6 +283,10 @@ class RetrieveClientStats():
         stats_op = self.clientmgrobj.get_dbus_method("GetClientAllops",
                           self.dbus_clientstats_name)
         return ClientAllops(stats_op(ip))
+    def client_iomon_stats(self, ip):
+        stats_op = self.clientmgrobj.get_dbus_method("GetNFSClientIOMon",
+                                                     self.dbus_clientstats_name)
+        return ClientIOMonStats(self.io_stats(stats_op, ip))
 
 
 class ClientStats(Report):
@@ -1043,6 +1059,34 @@ class ExportIOv42Stats(Report):
             output += "\n\n"
         return output
 
+class ClientIOMonStats(Report):
+    def __init__(self, stats):
+        super().__init__(stats)
+        self.stats = stats
+
+    def report(self):
+        return export_io_stats_report(self._header, self.result)
+
+    def __str__(self):
+        output = ""
+        for key in self.stats:
+            output = ""
+            if not self.stats[key][0]:
+                output += "\nClientIP %s: %s\n" % (key, self.stats[key][1])
+                continue
+            if self.stats[key][1] != "OK":
+                output += self.stats[key][1] + "\n"
+            output += ("ClientIP %s:" % (key) +
+                       "\t    Requests\t  BW(MB/s)" +
+                       "\nREAD: ")
+            output += "\t\t" + str(self.stats[key][3][2]).rjust(8) + "\t" + str(self.stats[key][3][1]/(1024*1024)).rjust(8)
+            output += "\nWRITE: "
+            output += "\t\t" + str(self.stats[key][4][2]).rjust(8) + "\t" + str(self.stats[key][4][1]/(1024*1024)).rjust(8)
+            output += "\nTotal: "
+            output += "\t\t" + str(self.stats[key][3][2] + self.stats[key][4][2]).rjust(8) + "\t      -"
+            output += "\n\n"
+        return output
+
 class ExportIOMonStats(Report):
     def __init__(self, stats):
         super().__init__(stats)
@@ -1060,13 +1104,13 @@ class ExportIOMonStats(Report):
             if self.stats[key][1] != "OK":
                 output += self.stats[key][1] + "\n"
             output += ("EXPORT %s:" % (key) +
-                       "\t    BW(MB/s)\t" +
+                       "\t    Requests\t    Latency\t    BW(MB/s)" +
                        "\nREAD: ")
-            output += "\t\t" + str(self.stats[key][3][2]).rjust(8)
+            output += "\t\t" + str(self.stats[key][3][2]).rjust(8) + "\t" + str(self.stats[key][3][4]).rjust(8) + "\t" + str(self.stats[key][3][1]/(1024*1024)).rjust(8)
             output += "\nWRITE: "
-            output += "\t\t" + str(self.stats[key][4][2]).rjust(8)
+            output += "\t\t" + str(self.stats[key][4][2]).rjust(8) + "\t" + str(self.stats[key][4][4]).rjust(8) + "\t" + str(self.stats[key][4][1]/(1024*1024)).rjust(8)
             output += "\nTotal: "
-            output += "\t\t" + str(self.stats[key][3][2] + self.stats[key][4][2]).rjust(8)
+            output += "\t\t" + str(self.stats[key][3][2] + self.stats[key][4][2]).rjust(8) + "\t" + str(self.stats[key][3][4] + self.stats[key][4][4]).rjust(8) + "\t      -"
             output += "\n\n"
         return output
 
