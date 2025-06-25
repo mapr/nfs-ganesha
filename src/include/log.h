@@ -84,7 +84,7 @@ char *ReturnLevelInt(int level);
 /* previously at log_macros.h */
 void RegisterCleanup(struct cleanup_list_element *clean);
 void Cleanup(void);
-void Fatal(void);
+void FatalExit(void);
 
 /* This function is primarily for setting log level from config, it will
  * not override log level set from environment.

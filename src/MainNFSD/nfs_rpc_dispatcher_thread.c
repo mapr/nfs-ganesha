@@ -1303,7 +1303,7 @@ static bool __Register_program(protos prot, int vers)
 static inline void Register_program(protos prot, int vers)
 {
 	if (!__Register_program(prot, vers))
-		Fatal();
+		FatalExit();
 }
 #endif /* RPCBIND */
 

@@ -374,6 +374,7 @@ static struct tm *Localtime_r(const time_t *p_time, struct tm *p_tm)
 #endif
 
 struct cleanup_list_element *cleanup_list;
+void mapr_exit(int exit_status);
 
 void RegisterCleanup(struct cleanup_list_element *clean)
 {
@@ -398,9 +399,9 @@ void Cleanup(void)
 #endif
 }
 
-void Fatal(void)
+void FatalExit(void)
 {
-	_exit(2);
+  mapr_exit(2);
 }
 
 /*
@@ -1104,13 +1105,13 @@ void init_logging(const char *log_path, const int debug_level)
 	if (rc != 0) {
 		fprintf(stderr, "Create error (%s) for STDERR log facility!",
 			strerror(-rc));
-		Fatal();
+		FatalExit();
 	}
 	rc = set_default_log_facility("STDERR");
 	if (rc != 0) {
 		fprintf(stderr, "Enable error (%s) for STDERR log facility!",
 			strerror(-rc));
-		Fatal();
+		FatalExit();
 	}
 	rc = create_log_facility("STDOUT", log_to_stream,
 				 NIV_FULL_DEBUG, LH_ALL, stdout);
@@ -1749,7 +1750,7 @@ void display_log_component_level(log_components_t component, const char *file,
 	PTHREAD_RWLOCK_unlock(&log_rwlock);
 
 	if (level == NIV_FATAL)
-		Fatal();
+		FatalExit();
 }
 
 /**
