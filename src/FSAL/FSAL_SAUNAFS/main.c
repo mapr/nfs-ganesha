@@ -397,7 +397,7 @@ MODULE_INIT void initializeSaunaFS(void)
 	struct fsal_module *myself = &SaunaFS.fsal;
 
 	int retval = register_fsal(myself, module, FSAL_MAJOR_VERSION,
-				   FSAL_MINOR_VERSION, FSAL_ID_SAUNAFS);
+				   FSAL_MINOR_VERSION, FSAL_ID_SAUNAFS, NULL);
 
 	if (retval) {
 		LogCrit(COMPONENT_FSAL, "SaunaFS module failed to register.");
