@@ -159,7 +159,7 @@ void set_op_context_pnfs_ds(struct fsal_pnfs_ds *pds);
 
 int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 		  uint32_t major_version, uint32_t minor_version,
-		  uint8_t fsal_id);
+		  uint8_t fsal_id, void (*dump_logs_fn)(void));
 /**
  * @brief Unregister an FSAL
  *

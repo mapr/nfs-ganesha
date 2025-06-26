@@ -133,7 +133,7 @@ MODULE_INIT void glusterfs_init(void)
 	struct fsal_module *myself = &GlusterFS.fsal;
 
 	if (register_fsal(myself, glfsal_name, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_GLUSTER) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_GLUSTER, NULL) != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"Gluster FSAL module failed to register.");
 		return;

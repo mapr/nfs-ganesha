@@ -2868,7 +2868,7 @@ MODULE_INIT void proxy_v3_init(void)
 {
 	/* Try to register our FSAL. If it fails, exit. */
 	if (register_fsal(&PROXY_V3.module, "PROXY_V3", FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL) != 0) {
 		return;
 	}
 

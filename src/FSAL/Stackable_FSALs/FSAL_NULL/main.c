@@ -123,7 +123,7 @@ MODULE_INIT void nullfs_init(void)
 	struct fsal_module *myself = &NULLFS.module;
 
 	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
-			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS);
+			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS, NULL);
 	if (retval != 0) {
 		fprintf(stderr, "NULLFS module failed to register");
 		return;
