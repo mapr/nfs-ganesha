@@ -602,6 +602,20 @@ static fsal_status_t mdcache_test_access(struct fsal_obj_handle *obj_hdl,
 	if (owner_skip && entry->attrs.owner == op_ctx->creds.caller_uid)
 		return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
+	/* When support_server_aces is enabled, ask the sub-FSAL if it needs
+	 * to handle access resolution (e.g., mode==0 means ACL-only on backend).
+	 */
+	if (mdcache_param.support_server_aces &&
+	    entry->sub_handle->obj_ops->enforce_perm_on_server(
+						entry->sub_handle)) {
+		LogDebug(COMPONENT_MDCACHE,
+			 "Delegating access check to sub-FSAL for entry %p",
+			 entry);
+		return entry->sub_handle->obj_ops->test_access(
+				entry->sub_handle, access_type,
+				allowed, denied, owner_skip);
+	}
+
 	return fsal_test_access(obj_hdl, access_type, allowed, denied,
 				owner_skip);
 }
