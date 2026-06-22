@@ -129,6 +129,9 @@ struct mdcache_parameter {
 	/** High water mark for dirent mapping entries.  Defaults to 10000,
 	    settable by Dirmap_HWMark. */
 	uint32_t dirmap_hwmark;
+	/** When true, delegate access checks to the sub-FSAL.
+	    Defaults to false, settable with support_server_aces. */
+	bool support_server_aces;
 };
 
 extern struct mdcache_parameter mdcache_param;
