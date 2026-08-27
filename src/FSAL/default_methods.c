@@ -1484,6 +1484,14 @@ static bool is_referral(struct fsal_obj_handle *obj_hdl,
 	return false;
 }
 
+/**
+ * @brief Default enforce_perm_on_server - always returns false
+ */
+static bool enforce_perm_on_server_default(struct fsal_obj_handle *obj_hdl)
+{
+	return false;
+}
+
 /* Default fsal handle object method vector.
  * copied to allocated vector at register time
  */
@@ -1501,6 +1509,7 @@ struct fsal_obj_ops def_handle_ops = {
 	.mknode = makenode,
 	.symlink = makesymlink,
 	.readlink = readsymlink,
+	.enforce_perm_on_server = enforce_perm_on_server_default,
 	.test_access = fsal_test_access,	/* default is use common test */
 	.getattrs = getattrs,
 	.link = linkfile,

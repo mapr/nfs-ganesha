@@ -1868,6 +1868,20 @@ struct fsal_obj_ops {
 				   bool refresh);
 
 /**
+ * @brief Check if access resolution must be handled by the FSAL
+ *
+ * Returns true if the FSAL requires access checks to be delegated
+ * to it (e.g., when mode bits are 0 and ACLs are enforced on the
+ * backend). When true, MDCACHE will call the FSAL's test_access
+ * instead of evaluating permissions locally.
+ *
+ * @param[in] obj_hdl     Handle to check
+ *
+ * @return true if FSAL must handle access checks, false otherwise.
+ */
+	 bool (*enforce_perm_on_server)(struct fsal_obj_handle *obj_hdl);
+
+/**
  * @brief Check access for a given user against a given object
  *
  * This function checks whether a given user is allowed to perform the

@@ -31,6 +31,10 @@
 #MDCACHE {
 	## The point at which object cache entries will start being reused.
 	#Entries_HWMark = 100000;
+
+	## When true, delegate all access checks to the sub-FSAL.
+	## Enable for MapRFS where mode=0 means ACL-only enforcement.
+	#support_server_aces = false;
 #}
 
 ## Configure an export for some file tree
