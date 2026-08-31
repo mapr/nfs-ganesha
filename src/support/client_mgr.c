@@ -598,6 +598,54 @@ static struct gsh_dbus_method cltmgr_client_io_ops = {
 };
 
 /**
+ * DBUS method to report NFS I/O statistics
+ *
+ */
+
+static bool get_nfsmon_client_io(DBusMessageIter *args,
+				 DBusMessage *reply,
+				 DBusError *error)
+{
+	struct gsh_client *client = NULL;
+	struct server_stats *server_st = NULL;
+	bool success = true;
+	char *errormsg = "OK";
+	DBusMessageIter iter;
+
+	dbus_message_iter_init_append(reply, &iter);
+
+	client = lookup_client(args, &errormsg);
+
+	if (!nfs_param.core_param.enable_NFSSTATS)
+		errormsg = "NFS stat counting disabled";
+
+	if (client == NULL)
+		success = false;
+	else
+		server_st = container_of(client, struct server_stats, client);
+
+	gsh_dbus_status_reply(&iter, success, errormsg);
+
+	if (success)
+		server_dbus_nfsmon_iostats_client(server_st, &iter);
+
+	if (client != NULL)
+		put_gsh_client(client);
+
+	return true;
+}
+
+static struct gsh_dbus_method client_show_nfsmon_io = {
+	.name = "GetNFSClientIOMon",
+	.method = get_nfsmon_client_io,
+	.args = {IPADDR_ARG,
+		 STATUS_REPLY,
+		 TIMESTAMP_REPLY,
+		 IOSTATS_REPLY,
+		 END_ARG_LIST}
+};
+
+/**
  * DBUS method to get all ops statistics for a client
  */
 static bool gsh_client_all_ops(DBusMessageIter *args,
@@ -1172,6 +1220,7 @@ static struct gsh_dbus_method *cltmgr_stats_methods[] = {
 	&cltmgr_show_delegations,
 	&cltmgr_client_io_ops,
 	&cltmgr_client_all_ops,
+	&client_show_nfsmon_io,
 #ifdef _USE_9P
 	&cltmgr_show_9p_io,
 	&cltmgr_show_9p_trans,

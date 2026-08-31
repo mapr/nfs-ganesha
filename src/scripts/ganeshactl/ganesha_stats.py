@@ -45,10 +45,10 @@ To display current status regarding stat counting use:
 To display stat counters use:
   {progname} [list_clients | deleg <ip address>
               inode | iov3 [export id] | iov4 [export id] | iov41 [export id] | iov42 [export id] |
-              iomon [export id] | export | total [export id] | fast | pnfs [export id] |
+              export_throughput [export id] | export | total [export id] | fast | pnfs [export id] |
               fsal <fsal name> | v3_full | v4_full | auth |
               client_io_ops <ip address> | export_details <export id> |
-              client_all_ops <ip address>]
+              client_all_ops <ip address>| client_throughput <ip address>]
 
 To display stat counters in json format use:
   {progname} json <command>
@@ -87,9 +87,9 @@ if output_json and command in json_not_available:
 # check arguments
 commands = (
     'help', 'list_clients', 'deleg', 'global', 'inode', 'iov3', 'iov4',
-    'iov41', 'iov42', 'iomon', 'export', 'total', 'fast', 'pnfs', 'fsal',
+    'iov41', 'iov42', 'iomon', 'export', 'export_throughput', 'total', 'fast', 'pnfs', 'fsal',
     'reset', 'enable', 'disable', 'status', 'v3_full', 'v4_full', 'auth',
-    'client_io_ops', 'export_details', 'client_all_ops', 'json'
+    'client_io_ops', 'export_details', 'client_all_ops', 'client_throughput', 'json'
 )
 
 if command not in commands:
@@ -111,8 +111,15 @@ elif command == 'export_details':
     else:
         print("\nError: Argument '%s' must be numeric." % opts[0])
         print_usage_exit(1)
+elif command == 'client_throughput':
+    if len(opts) == 0:
+        command_arg = ""
+    elif (len(opts) == 1):
+        command_arg = opts[0]
+    else:
+        print_usage_exit(1)
 # optionally accepts an export id
-elif command in ('iov3', 'iov4', 'iov41', 'iov42', 'iomon', 'total', 'pnfs'):
+elif command in ('iov3', 'iov4', 'iov41', 'iov42', 'total', 'pnfs', 'export_throughput'):
     if (len(opts) == 0):
         command_arg = -1
     elif (len(opts) == 1) and opts[0].isdigit():
@@ -168,8 +175,10 @@ try:
         result = exp_interface.v41io_stats(command_arg)
     elif command == "iov42":
         result = exp_interface.v42io_stats(command_arg)
-    elif command == "iomon":
+    elif command == "export_throughput":
         result = exp_interface.iomon_stats(command_arg)
+    elif command == "client_throughput":
+        result = cl_interface.client_iomon_stats(command_arg)
     elif command == "total":
         result = exp_interface.total_stats(command_arg)
     elif command == "export_details":
@@ -194,5 +203,6 @@ try:
         result = exp_interface.status_stats()
 
     print(result.json()) if output_json else print(result)
-except dbus.exceptions.DBusException:
+except dbus.exceptions.DBusException as ee:
+    print(ee)
     sys.exit("Error: Can't talk to ganesha service on d-bus. Looks like Ganesha is down")

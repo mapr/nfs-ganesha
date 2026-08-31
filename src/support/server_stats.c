@@ -2399,12 +2399,16 @@ void server_nfsmon_export_iostats(struct export_stats *export_st,
 					  gsh_st.nfsv3->read.requested);
 		(void)atomic_add_uint64_t(&opread->transferred,
 					  gsh_st.nfsv3->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv3->read.cmd.latency.latency);
 		(void)atomic_add_uint64_t(&opwrite->cmd.total,
 					  gsh_st.nfsv3->write.cmd.total);
 		(void)atomic_add_uint64_t(&opwrite->requested,
 					  gsh_st.nfsv3->write.requested);
 		(void)atomic_add_uint64_t(&opwrite->transferred,
 					  gsh_st.nfsv3->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv3->write.cmd.latency.latency);
 	}
 #endif
 
@@ -2415,12 +2419,16 @@ void server_nfsmon_export_iostats(struct export_stats *export_st,
 					  gsh_st.nfsv40->read.requested);
 		(void)atomic_add_uint64_t(&opread->transferred,
 					  gsh_st.nfsv40->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv40->read.cmd.latency.latency);
 		(void)atomic_add_uint64_t(&opwrite->cmd.total,
 					  gsh_st.nfsv40->write.cmd.total);
 		(void)atomic_add_uint64_t(&opwrite->requested,
 					  gsh_st.nfsv40->write.requested);
 		(void)atomic_add_uint64_t(&opwrite->transferred,
 					  gsh_st.nfsv40->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv40->write.cmd.latency.latency);
 	}
 
 	if (gsh_st.nfsv41 != NULL) {
@@ -2430,12 +2438,16 @@ void server_nfsmon_export_iostats(struct export_stats *export_st,
 					  gsh_st.nfsv41->read.requested);
 		(void)atomic_add_uint64_t(&opread->transferred,
 					  gsh_st.nfsv41->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv41->read.cmd.latency.latency);
 		(void)atomic_add_uint64_t(&opwrite->cmd.total,
 					  gsh_st.nfsv41->write.cmd.total);
 		(void)atomic_add_uint64_t(&opwrite->requested,
 					  gsh_st.nfsv41->write.requested);
 		(void)atomic_add_uint64_t(&opwrite->transferred,
 					  gsh_st.nfsv41->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv41->write.cmd.latency.latency);
 	}
 
 	if (gsh_st.nfsv42 != NULL) {
@@ -2445,12 +2457,16 @@ void server_nfsmon_export_iostats(struct export_stats *export_st,
 					  gsh_st.nfsv42->read.requested);
 		(void)atomic_add_uint64_t(&opread->transferred,
 					  gsh_st.nfsv42->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv42->read.cmd.latency.latency);
 		(void)atomic_add_uint64_t(&opwrite->cmd.total,
 					  gsh_st.nfsv42->write.cmd.total);
 		(void)atomic_add_uint64_t(&opwrite->requested,
 					  gsh_st.nfsv42->write.requested);
 		(void)atomic_add_uint64_t(&opwrite->transferred,
 					  gsh_st.nfsv42->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv42->write.cmd.latency.latency);
 	}
 }
 
@@ -2465,6 +2481,8 @@ void server_ret_nfsmon_iostats(struct xfer_op *op_read,
 				  op_preread->requested);
 	(void)atomic_sub_uint64_t(&op_read->transferred,
 				  op_preread->transferred);
+	(void)atomic_sub_uint64_t(&op_read->cmd.latency.latency,
+                                  op_preread->cmd.latency.latency);
 
 	(void)atomic_sub_uint64_t(&op_write->cmd.total,
 				  op_prewrite->cmd.total);
@@ -2472,6 +2490,8 @@ void server_ret_nfsmon_iostats(struct xfer_op *op_read,
 				  op_prewrite->requested);
 	(void)atomic_sub_uint64_t(&op_write->transferred,
 				  op_prewrite->transferred);
+	(void)atomic_sub_uint64_t(&op_write->cmd.latency.latency,
+                                  op_prewrite->cmd.latency.latency);
 }
 
 void server_dbus_nfsmon_iostats(struct export_stats *export_st,
@@ -2501,6 +2521,120 @@ void server_dbus_nfsmon_iostats(struct export_stats *export_st,
 	gsh_free(op_prewrite);
 	gsh_free(op_read);
 	gsh_free(op_write);
+}
+
+void server_nfsmon_client_iostats(struct server_stats *server_st,
+                                  struct xfer_op *opread,
+                                  struct xfer_op *opwrite)
+{
+        struct gsh_stats gsh_st = server_st->st;
+
+#ifdef _USE_NFS3
+        if (gsh_st.nfsv3 != NULL) {
+                (void)atomic_add_uint64_t(&opread->cmd.total,
+                                          gsh_st.nfsv3->read.cmd.total);
+                (void)atomic_add_uint64_t(&opread->requested,
+                                          gsh_st.nfsv3->read.requested);
+                (void)atomic_add_uint64_t(&opread->transferred,
+                                          gsh_st.nfsv3->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv3->read.cmd.latency.latency);
+                (void)atomic_add_uint64_t(&opwrite->cmd.total,
+                                          gsh_st.nfsv3->write.cmd.total);
+                (void)atomic_add_uint64_t(&opwrite->requested,
+                                          gsh_st.nfsv3->write.requested);
+                (void)atomic_add_uint64_t(&opwrite->transferred,
+                                          gsh_st.nfsv3->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv3->write.cmd.latency.latency);
+        }
+#endif
+
+        if (gsh_st.nfsv40 != NULL) {
+                (void)atomic_add_uint64_t(&opread->cmd.total,
+                                          gsh_st.nfsv40->read.cmd.total);
+                (void)atomic_add_uint64_t(&opread->requested,
+                                          gsh_st.nfsv40->read.requested);
+                (void)atomic_add_uint64_t(&opread->transferred,
+                                          gsh_st.nfsv40->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv40->read.cmd.latency.latency);
+                (void)atomic_add_uint64_t(&opwrite->cmd.total,
+                                          gsh_st.nfsv40->write.cmd.total);
+                (void)atomic_add_uint64_t(&opwrite->requested,
+                                          gsh_st.nfsv40->write.requested);
+                (void)atomic_add_uint64_t(&opwrite->transferred,
+                                          gsh_st.nfsv40->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv40->write.cmd.latency.latency);
+        }
+
+        if (gsh_st.nfsv41 != NULL) {
+                (void)atomic_add_uint64_t(&opread->cmd.total,
+                                          gsh_st.nfsv41->read.cmd.total);
+                (void)atomic_add_uint64_t(&opread->requested,
+                                          gsh_st.nfsv41->read.requested);
+                (void)atomic_add_uint64_t(&opread->transferred,
+                                          gsh_st.nfsv41->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv41->read.cmd.latency.latency);
+                (void)atomic_add_uint64_t(&opwrite->cmd.total,
+                                          gsh_st.nfsv41->write.cmd.total);
+                (void)atomic_add_uint64_t(&opwrite->requested,
+                                          gsh_st.nfsv41->write.requested);
+                (void)atomic_add_uint64_t(&opwrite->transferred,
+                                          gsh_st.nfsv41->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv41->write.cmd.latency.latency);
+        }
+
+        if (gsh_st.nfsv42 != NULL) {
+                (void)atomic_add_uint64_t(&opread->cmd.total,
+                                          gsh_st.nfsv42->read.cmd.total);
+                (void)atomic_add_uint64_t(&opread->requested,
+                                          gsh_st.nfsv42->read.requested);
+                (void)atomic_add_uint64_t(&opread->transferred,
+                                          gsh_st.nfsv42->read.transferred);
+		(void)atomic_add_uint64_t(&opread->cmd.latency.latency,
+                                          gsh_st.nfsv42->read.cmd.latency.latency);
+                (void)atomic_add_uint64_t(&opwrite->cmd.total,
+                                          gsh_st.nfsv42->write.cmd.total);
+                (void)atomic_add_uint64_t(&opwrite->requested,
+                                          gsh_st.nfsv42->write.requested);
+                (void)atomic_add_uint64_t(&opwrite->transferred,
+                                          gsh_st.nfsv42->write.transferred);
+		(void)atomic_add_uint64_t(&opwrite->cmd.latency.latency,
+                                          gsh_st.nfsv42->write.cmd.latency.latency);
+        }
+}
+
+void server_dbus_nfsmon_iostats_client(struct server_stats *server_st,
+                                DBusMessageIter *iter)
+{
+        struct xfer_op *op_preread = NULL;
+        struct xfer_op *op_prewrite = NULL;
+        struct xfer_op *op_read = NULL;
+        struct xfer_op *op_write = NULL;
+
+        op_preread = (struct xfer_op *)gsh_calloc(1, sizeof(struct xfer_op));
+        op_prewrite = (struct xfer_op *)gsh_calloc(1, sizeof(struct xfer_op));
+        op_read = (struct xfer_op *)gsh_calloc(1, sizeof(struct xfer_op));
+        op_write = (struct xfer_op *)gsh_calloc(1, sizeof(struct xfer_op));
+
+        server_nfsmon_client_iostats(server_st, op_preread, op_prewrite);
+        sleep(1);
+        server_nfsmon_client_iostats(server_st, op_read, op_write);
+
+        server_ret_nfsmon_iostats(op_read, op_write, op_preread, op_prewrite);
+
+        gsh_dbus_append_timestamp(iter, &nfs_stats_time);
+        server_dbus_iostats(op_read, iter);
+        server_dbus_iostats(op_write, iter);
+
+        gsh_free(op_preread);
+        gsh_free(op_prewrite);
+        gsh_free(op_read);
+        gsh_free(op_write);
 }
 
 void server_dbus_fill_io(DBusMessageIter *array_iter, uint16_t *export_id,
